@@ -32,17 +32,22 @@
             border-radius: 5px;
         }
     </style>
+    <!-- Load Three.js with defer to ensure it loads before execution -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.161.0/three.min.js" defer></script>
 </head>
 <body>
     <div id="info">Quantum Racing Game - Use WASD to control the vehicle</div>
     <div id="speedometer">Speed: 0 km/h</div>
     
-    <!-- Load Three.js directly from the official CDN with defer attribute -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.161.0/three.min.js"></script>
-    
     <script>
-        // Wait for Three.js to load
-        window.addEventListener('DOMContentLoaded', (event) => {
+        // Wait for everything to load completely before starting the game
+        window.onload = function() {
+            // Verify THREE is loaded
+            if (typeof THREE === 'undefined') {
+                alert('Could not load Three.js. Please refresh the page or try a different browser.');
+                return;
+            }
+            
             // Global variables
             let scene, camera, renderer;
             let vehicle, track;
@@ -373,7 +378,7 @@
                 
                 renderer.render(scene, camera);
             }
-        });
+        };
     </script>
 </body>
 </html> 
