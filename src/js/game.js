@@ -182,14 +182,14 @@ class Game {
         // Create vehicle (after track so we can position it on the track)
         this.vehicle = new Vehicle(this.scene, this.particleSystem);
         
-        // FIXED: Position vehicle better at start of track to avoid barriers completely
-        // Use a larger offset and add height
-        const startPosition = this.track.mainCurve.getPointAt(0.05);
+        // FIXED: Position vehicle at a completely clear position on the track
+        // Use a significant offset and more height
+        const startPosition = this.track.mainCurve.getPointAt(0.1);
         this.vehicle.position.copy(startPosition);
-        this.vehicle.position.y += 3; // Lift significantly above track for clear starting position
+        this.vehicle.position.y += 5; // Increased from 3 to 5 for a higher starting position
         
         // Get tangent at start to orient vehicle correctly
-        const startTangent = this.track.mainCurve.getTangentAt(0.05);
+        const startTangent = this.track.mainCurve.getTangentAt(0.1);
         const angle = Math.atan2(startTangent.x, startTangent.z);
         this.vehicle.rotation.y = angle;
         
@@ -251,20 +251,20 @@ class Game {
         Utils.hideElement('game-over-screen');
         Utils.showElement('game-ui');
         
-        // FIXED: Better reset of game state with larger offset from track start
-        const startPosition = this.track.mainCurve.getPointAt(0.05);
+        // FIXED: Better reset of game state with clear position on track
+        const startPosition = this.track.mainCurve.getPointAt(0.1);
         this.vehicle.position.copy(startPosition);
-        this.vehicle.position.y += 3; // Lift significantly above track
+        this.vehicle.position.y += 5; // Increased from 3 to 5 for a higher starting position
         
         // Reset vehicle orientation
-        const startTangent = this.track.mainCurve.getTangentAt(0.05);
+        const startTangent = this.track.mainCurve.getTangentAt(0.1);
         const angle = Math.atan2(startTangent.x, startTangent.z);
         this.vehicle.rotation.y = angle;
         this.vehicle.direction = new THREE.Vector3(startTangent.x, 0, startTangent.z).normalize();
         
-        // Reset physics state
+        // Reset physics state - ADDED initial forward speed to start moving
         this.vehicle.velocity = new THREE.Vector3(0, 0, 0);
-        this.vehicle.speed = 0;
+        this.vehicle.speed = 2.0; // Give an initial forward speed to start movement
         this.vehicle.quantumParticles = 0;
         this.vehicle.distanceTraveled = 0;
         this.vehicle.isOnGround = true;
@@ -274,7 +274,7 @@ class Game {
         this.vehicle.mesh.rotation.y = this.vehicle.rotation.y;
         
         // Update UI
-        Utils.updateElementText('speed-value', '0');
+        Utils.updateElementText('speed-value', '2'); // Updated to match initial speed
         Utils.updateElementText('particles-count', '0');
     }
     

@@ -246,13 +246,20 @@ class Vehicle {
         // Apply input controls
         let accelerationFactor = 0;
         
-        // FIXED: Make sure forward/backward controls work
+        // FIXED: CRITICAL FIX - Make sure accelerationRate is set properly and used consistently
+        // Set default value in case it somehow got unset
+        if (typeof this.accelerationRate !== 'number' || isNaN(this.accelerationRate)) {
+            this.accelerationRate = 1.0;
+            console.log("Reset accelerationRate to default value");
+        }
+        
+        // FIXED: Drastically increased acceleration for better responsiveness
         if (this.controls.forward) {
-            // FIXED: Use the correct acceleration property and increase it for better responsiveness
-            accelerationFactor = this.accelerationRate * 3.0; // Increased from 1.5 to 3.0 for more responsive acceleration
+            accelerationFactor = 5.0; // Fixed value instead of using this.accelerationRate
+            console.log("Applying forward acceleration:", accelerationFactor);
         } else if (this.controls.backward) {
-            // FIXED: Use the correct acceleration property
-            accelerationFactor = -this.accelerationRate * 1.2; // Increased from 0.6 to 1.2 for better braking
+            accelerationFactor = -3.0; // Fixed value instead of using this.accelerationRate
+            console.log("Applying backward acceleration:", accelerationFactor);
         } else {
             // Apply deceleration when no input
             if (this.speed > 0) {
@@ -289,11 +296,20 @@ class Vehicle {
             }
         }
         
+        // FIXED: Update speed with fixed delta time to ensure consistent acceleration
+        // This prevents very small or large deltaTime values from causing issues
+        const normalizedDeltaTime = Math.min(Math.max(deltaTime, 0.01), 0.05);
+        
         // Update speed with the acceleration factor
-        this.speed += accelerationFactor * deltaTime;
+        this.speed += accelerationFactor * normalizedDeltaTime;
         
         // Apply speed limits
         this.speed = Utils.clamp(this.speed, -this.maxSpeed / 2, this.maxSpeed);
+        
+        // FIXED: Small initial push if speed is very low and trying to accelerate
+        if (Math.abs(this.speed) < 0.1 && accelerationFactor !== 0) {
+            this.speed = accelerationFactor > 0 ? 0.5 : -0.5;
+        }
         
         // Turning
         let turnFactor = 0;

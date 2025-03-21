@@ -139,8 +139,8 @@ class Track {
         // Create track barriers
         const barrierShape = new THREE.Shape();
         barrierShape.moveTo(-1, 0);
-        barrierShape.lineTo(-1, 2);
-        barrierShape.lineTo(1, 2);
+        barrierShape.lineTo(-1, 1); // Reduced height from 2 to 1
+        barrierShape.lineTo(1, 1); // Reduced height from 2 to 1
         barrierShape.lineTo(1, 0);
         
         // Left barrier
@@ -152,8 +152,8 @@ class Track {
             const tangent = leftBarrierCurve.getTangent(i / (leftBarrierPoints.length - 1));
             const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
             
-            // Move barrier to edge of track with a bit more space
-            leftBarrierPoints[i].add(normal.multiplyScalar(this.trackWidth / 2 + 2));
+            // Move barriers much further away from track
+            leftBarrierPoints[i].add(normal.multiplyScalar(this.trackWidth / 2 + 5)); // Increased from +2 to +5
         }
         
         const leftBarrierCurveFinal = new THREE.CatmullRomCurve3(leftBarrierPoints);
@@ -179,7 +179,8 @@ class Track {
             const tangent = rightBarrierCurve.getTangent(i / (rightBarrierPoints.length - 1));
             const normal = new THREE.Vector3(tangent.z, 0, -tangent.x).normalize();
             
-            rightBarrierPoints[i].add(normal.multiplyScalar(this.trackWidth / 2 + 2));
+            // Move barriers much further away from track
+            rightBarrierPoints[i].add(normal.multiplyScalar(this.trackWidth / 2 + 5)); // Increased from +2 to +5
         }
         
         const rightBarrierCurveFinal = new THREE.CatmullRomCurve3(rightBarrierPoints);
