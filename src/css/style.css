@@ -1,0 +1,184 @@
+/* Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000;
+    color: #fff;
+}
+
+/* Container styles */
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Loading screen */
+#loading-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+    z-index: 100;
+}
+
+#loading-screen h1 {
+    font-size: 4rem;
+    margin-bottom: 2rem;
+    color: #0ff;
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff, 0 0 30px #0ff;
+    letter-spacing: 5px;
+}
+
+.loader {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(0, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #0ff;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Menu screen */
+#menu-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 90;
+}
+
+#menu-screen h1 {
+    font-size: 5rem;
+    margin-bottom: 3rem;
+    color: #0ff;
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+    letter-spacing: 8px;
+}
+
+button {
+    padding: 15px 30px;
+    font-size: 1.5rem;
+    margin: 10px;
+    background-color: transparent;
+    color: #0ff;
+    border: 2px solid #0ff;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-shadow: 0 0 5px #0ff;
+    letter-spacing: 2px;
+}
+
+button:hover {
+    background-color: rgba(0, 255, 255, 0.2);
+    box-shadow: 0 0 15px #0ff;
+}
+
+/* Instructions screen */
+#instructions-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 95;
+}
+
+#instructions-screen h2 {
+    font-size: 3rem;
+    margin-bottom: 2rem;
+    color: #0ff;
+}
+
+#instructions-screen p {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    max-width: 600px;
+    text-align: center;
+}
+
+/* Game UI */
+#game-ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+}
+
+#speed-meter {
+    font-size: 2rem;
+    color: #0ff;
+    margin-bottom: 10px;
+    text-shadow: 0 0 5px #0ff;
+}
+
+#quantum-particles {
+    font-size: 1.5rem;
+    color: #f0f;
+    text-shadow: 0 0 5px #f0f;
+}
+
+/* Game over screen */
+#game-over-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 80;
+}
+
+#game-over-screen h2 {
+    font-size: 4rem;
+    margin-bottom: 2rem;
+    color: #f00;
+    text-shadow: 0 0 10px #f00;
+}
+
+#game-over-screen p {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Utility classes */
+.hidden {
+    display: none !important;
+} 
