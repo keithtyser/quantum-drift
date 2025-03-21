@@ -3,12 +3,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.m
 export class Track {
     constructor() {
         this.trackMesh = null;
+        this.trackWidth = 10;
+        this.trackLength = 100;
     }
 
     init(scene) {
         // Create a straight track
-        const trackLength = 100;
-        const trackWidth = 10;
+        const trackLength = this.trackLength;
+        const trackWidth = this.trackWidth;
         
         // Create track geometry
         const trackGeometry = new THREE.PlaneGeometry(trackWidth, trackLength);
@@ -28,6 +30,9 @@ export class Track {
         
         // Add side lines for the track
         this.addTrackLines(scene, trackLength, trackWidth);
+        
+        // Add traffic cones for visual boundaries
+        this.addTrafficCones(scene, trackLength, trackWidth);
         
         // Add environment elements
         this.addEnvironment(scene);
@@ -56,6 +61,32 @@ export class Track {
             const dash = new THREE.Mesh(dashGeometry, lineMaterial);
             dash.position.set(0, 0.01, -i);
             scene.add(dash);
+        }
+    }
+    
+    addTrafficCones(scene, trackLength, trackWidth) {
+        // Create cone geometry and material
+        const coneGeometry = new THREE.ConeGeometry(1, 2, 8); // Larger cones (radius 1, height 2)
+        const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Bright red
+        
+        // Place cones along both sides of the track
+        for (let z = 0; z >= -trackLength; z -= 5) { // Every 5 units
+            // Left side cone
+            const leftCone = new THREE.Mesh(coneGeometry, coneMaterial);
+            leftCone.position.set(-trackWidth/2 - 1.5, 1, z); // Positioned just outside the track
+            scene.add(leftCone);
+            
+            // Right side cone
+            const rightCone = new THREE.Mesh(coneGeometry, coneMaterial);
+            rightCone.position.set(trackWidth/2 + 1.5, 1, z); // Positioned just outside the track
+            scene.add(rightCone);
+        }
+        
+        // Add additional cones at the start for better visibility
+        for (let x = -trackWidth/2; x <= trackWidth/2; x += 2) {
+            const startCone = new THREE.Mesh(coneGeometry, coneMaterial);
+            startCone.position.set(x, 1, 5); // At the start line
+            scene.add(startCone);
         }
     }
     

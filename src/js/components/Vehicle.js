@@ -12,11 +12,16 @@ export class Vehicle {
         this.rotation = new THREE.Euler(0, 0, 0);
         
         // Movement parameters
-        this.maxSpeed = 30;
-        this.accelerationRate = 10;
-        this.brakingRate = 15;
-        this.steeringRate = 2.5;
-        this.drag = 0.95;
+        this.maxSpeed = 200;         // Increased from 30 to 200
+        this.accelerationRate = 150; // Increased from 10 to 150
+        this.brakingRate = 80;       // Increased from 15 to 80
+        this.steeringRate = 4.5;     // Increased from 2.5 to 4.5
+        this.drag = 0.98;            // Increased from 0.95 to 0.98 for less drag
+        
+        // Boundary parameters
+        this.boundaryForce = 40;     // Force applied to keep vehicle on track
+        this.trackWidth = 10;        // Match this with the Track width
+        this.trackLength = 100;      // Match this with the Track length
         
         // Control state
         this.controls = {
@@ -25,6 +30,26 @@ export class Vehicle {
             turnLeft: false,
             turnRight: false
         };
+        
+        // Speedometer element
+        this.speedometerElement = this.createSpeedometerElement();
+    }
+    
+    createSpeedometerElement() {
+        // Create speedometer element
+        const speedometer = document.createElement('div');
+        speedometer.id = 'speedometer';
+        speedometer.style.position = 'absolute';
+        speedometer.style.bottom = '20px';
+        speedometer.style.right = '20px';
+        speedometer.style.padding = '10px';
+        speedometer.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        speedometer.style.color = 'white';
+        speedometer.style.fontFamily = 'Arial, sans-serif';
+        speedometer.style.borderRadius = '5px';
+        speedometer.textContent = 'Speed: 0 km/h';
+        document.body.appendChild(speedometer);
+        return speedometer;
     }
 
     init(scene, camera) {
@@ -92,6 +117,9 @@ export class Vehicle {
         // Apply controls to update acceleration
         this.updateAcceleration(deltaTime);
         
+        // Apply boundary forces to keep vehicle on track
+        this.applyBoundaryForces();
+        
         // Apply physics (acceleration affects velocity, velocity affects position)
         this.velocity.add(this.acceleration.clone().multiplyScalar(deltaTime));
         
@@ -114,6 +142,9 @@ export class Vehicle {
         
         // Update camera position
         this.updateCamera();
+        
+        // Update speedometer
+        this.updateSpeedometer(speed);
     }
     
     updateAcceleration(deltaTime) {
@@ -148,6 +179,46 @@ export class Vehicle {
         
         if (this.controls.turnRight) {
             this.rotation.y -= this.steeringRate * deltaTime;
+        }
+    }
+    
+    updateSpeedometer(speed) {
+        // Convert speed to km/h (multiplying by 10 to make it feel more realistic)
+        const speedKmh = Math.round(speed * 10);
+        this.speedometerElement.textContent = `Speed: ${speedKmh} km/h`;
+    }
+    
+    applyBoundaryForces() {
+        // Calculate distance from track center (x-axis)
+        const trackHalfWidth = this.trackWidth / 2;
+        const distanceFromCenter = Math.abs(this.position.x);
+        
+        // Apply force to push vehicle back toward track
+        if (distanceFromCenter > trackHalfWidth) {
+            // Direction to center
+            const directionToCenter = new THREE.Vector3(-Math.sign(this.position.x), 0, 0);
+            
+            // Force increases the further you are from track
+            const boundaryForce = (distanceFromCenter - trackHalfWidth) * this.boundaryForce;
+            
+            // Apply force
+            this.acceleration.add(directionToCenter.multiplyScalar(boundaryForce));
+            
+            // Add friction when off track to slow down
+            this.velocity.multiplyScalar(0.95);
+        }
+        
+        // Handle Z-axis bounds (track length)
+        if (this.position.z < -this.trackLength || this.position.z > 5) {
+            // Turn the vehicle around if it goes too far
+            if (this.position.z < -this.trackLength) {
+                const turnaroundForce = new THREE.Vector3(0, 0, 1).multiplyScalar(this.boundaryForce / 2);
+                this.acceleration.add(turnaroundForce);
+            }
+            else if (this.position.z > 5) {
+                const turnaroundForce = new THREE.Vector3(0, 0, -1).multiplyScalar(this.boundaryForce / 2);
+                this.acceleration.add(turnaroundForce);
+            }
         }
     }
     
