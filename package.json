@@ -1,0 +1,25 @@
+{
+  "name": "quantum-racing-game",
+  "version": "1.0.0",
+  "description": "A physics-based racing game where players navigate through shifting quantum realms, with reality warping based on speed and trajectory.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "http-server src -o -p 8080",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "game",
+    "racing",
+    "quantum",
+    "three.js",
+    "javascript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.161.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
