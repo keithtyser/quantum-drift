@@ -60,12 +60,12 @@
             velocity: new THREE.Vector3(0, 0, 0),
             acceleration: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Euler(0, 0, 0),
-            maxSpeed: 60,            // Increased max speed
-            accelerationRate: 30,    // Much higher acceleration
-            brakingRate: 40,         // Increased braking power
-            steeringRate: 3.5,       // Increased steering rate
-            drag: 0.95,
-            boundaryForce: 30        // Force pushing back to track
+            maxSpeed: 200,           // Dramatically increased max speed
+            accelerationRate: 150,   // Extremely high acceleration
+            brakingRate: 80,         // Increased braking power
+            steeringRate: 4.5,       // Increased steering rate
+            drag: 0.98,              // Less drag
+            boundaryForce: 40        // Stronger boundary force
         };
         
         // Initialize everything
@@ -159,20 +159,27 @@
         
         function addTrackBoundaries(trackWidth, trackLength) {
             // Add cones or barriers along the track
-            const barrierMaterial = new THREE.MeshBasicMaterial({ color: 0xFF4500 });
-            const coneGeometry = new THREE.ConeGeometry(0.5, 1, 8);
+            const barrierMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 }); // Bright red
+            const coneGeometry = new THREE.ConeGeometry(1, 2, 8); // Larger cones
             
-            // Place cones along both sides of the track
-            for (let z = 0; z >= -trackLength; z -= 10) {
+            // Place cones along both sides of the track more frequently
+            for (let z = 0; z >= -trackLength; z -= 5) { // Every 5 units instead of 10
                 // Left side barrier
                 const leftCone = new THREE.Mesh(coneGeometry, barrierMaterial);
-                leftCone.position.set(-trackWidth/2 - 1, 0.5, z);
+                leftCone.position.set(-trackWidth/2 - 1.5, 1, z); // Higher position, more visible
                 scene.add(leftCone);
                 
                 // Right side barrier
                 const rightCone = new THREE.Mesh(coneGeometry, barrierMaterial);
-                rightCone.position.set(trackWidth/2 + 1, 0.5, z);
+                rightCone.position.set(trackWidth/2 + 1.5, 1, z); // Higher position, more visible
                 scene.add(rightCone);
+            }
+            
+            // Add additional cones at the start for better visibility
+            for (let x = -trackWidth/2; x <= trackWidth/2; x += 2) {
+                const startCone = new THREE.Mesh(coneGeometry, barrierMaterial);
+                startCone.position.set(x, 1, 5); // At the start line
+                scene.add(startCone);
             }
         }
         
