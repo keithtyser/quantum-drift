@@ -31,21 +31,6 @@ export function TrackSegmentView({ entity }: TrackSegmentViewProps) {
     return null;
   }
   
-  // Create a distinctive color based on segment index for debugging
-  const getSegmentColor = (index: number, type: string) => {
-    // Base color determined by segment type
-    let color;
-    switch (type) {
-      case 'curve-left': 
-      case 'curve-right': return '#4466AA';
-      case 'hill-up': return '#44AA66';
-      case 'hill-down': return '#AA4466';
-      case 'chicane': 
-      case 's-curve': return '#AA44AA';
-      default: return '#888888'; // straight
-    }
-  };
-  
   // Get segment start position for placement
   const startPos = segment.startPosition || controlPoints[0];
   
@@ -58,21 +43,37 @@ export function TrackSegmentView({ entity }: TrackSegmentViewProps) {
     return createTrackEdges(controlPoints, segment.width);
   }, [controlPoints, segment.width]);
   
-  // Create track geometry
+  // Create enhanced track geometry based on segment type
   const trackGeometry = useMemo(() => {
-    // Simple approach: create a flat plane for the track surface
-    const geometry = new THREE.PlaneGeometry(
-      segment.width, 
-      segmentLength,
-      Math.max(1, Math.floor(segment.width / 5)),
-      Math.max(1, Math.floor(segmentLength / 5))
-    );
-    
-    // Rotate and position the plane
-    geometry.rotateX(Math.PI / 2);
-    
-    return geometry;
-  }, [segment.width, segmentLength]);
+    // For curved or complex segments, use a more detailed approach
+    if (segment.type !== 'straight' && controlPoints.length >= 3) {
+      // Create a path from control points
+      const path = new THREE.CatmullRomCurve3(controlPoints);
+      
+      // Create a tube geometry following the path
+      const geometry = new THREE.TubeGeometry(
+        path,
+        Math.max(8, Math.floor(segmentLength / 5)), // More divisions for smoother curves
+        segment.width / 2,
+        8,
+        false
+      );
+      
+      return geometry;
+    } else {
+      // For straight segments, use a simple plane
+      const geometry = new THREE.PlaneGeometry(
+        segment.width,
+        segmentLength,
+        Math.max(1, Math.floor(segment.width / 5)),
+        Math.max(1, Math.floor(segmentLength / 5))
+      );
+      
+      // Rotate the plane to be horizontal
+      geometry.rotateX(Math.PI / 2);
+      return geometry;
+    }
+  }, [segment.type, controlPoints, segment.width, segmentLength]);
   
   // Calculate bounding box including control points and edges
   const boundingBox = useMemo(() => {
@@ -87,18 +88,65 @@ export function TrackSegmentView({ entity }: TrackSegmentViewProps) {
     width: segment.width
   }), [segment.type, segment.index, segment.width]);
   
+  // Calculate center position for the segment
+  const centerPosition = useMemo(() => {
+    if (segment.type === 'straight') {
+      // For straight segments, simply place at start and adjust for length
+      return new THREE.Vector3(
+        startPos.x,
+        startPos.y,
+        startPos.z - segmentLength/2
+      );
+    } else {
+      // For curved segments, use the midpoint between start and end
+      const midpoint = new THREE.Vector3()
+        .addVectors(startPos, segment.endPosition || controlPoints[controlPoints.length-1])
+        .multiplyScalar(0.5);
+      return midpoint;
+    }
+  }, [segment.type, startPos, segment.endPosition, controlPoints, segmentLength]);
+  
+  // Calculate rotation for the segment based on direction
+  const segmentRotation = useMemo(() => {
+    if (segment.type === 'straight') {
+      return new THREE.Euler(0, 0, 0);
+    } else if (segment.startDirection) {
+      // For curved segments, calculate rotation based on direction
+      const dir = segment.startDirection.clone().normalize();
+      return new THREE.Euler(0, Math.atan2(dir.x, dir.z), 0);
+    }
+    return new THREE.Euler(0, 0, 0);
+  }, [segment.type, segment.startDirection]);
+  
   return (
-    <group position={[startPos.x, startPos.y, startPos.z - segmentLength/2]}>
-      {/* Show segment as a colored box with surface pattern */}
-      <TrackSurfacePattern segment={segmentData} geometry={trackGeometry} />
+    <group>
+      {/* For straight segments, use simple placement */}
+      {segment.type === 'straight' && (
+        <group position={centerPosition}>
+          {/* Show segment as a colored box with surface pattern */}
+          <TrackSurfacePattern segment={segmentData} geometry={trackGeometry} />
+          
+          {/* Add barriers on both sides */}
+          <BarrierLine points={leftEdge} side="left" />
+          <BarrierLine points={rightEdge} side="right" />
+        </group>
+      )}
       
-      {/* Add barriers on both sides */}
-      <BarrierLine points={leftEdge} side="left" />
-      <BarrierLine points={rightEdge} side="right" />
+      {/* For curved segments, use more complex placement */}
+      {segment.type !== 'straight' && (
+        <group position={startPos}>
+          {/* Show segment as a colored surface with pattern */}
+          <TrackSurfacePattern segment={segmentData} geometry={trackGeometry} />
+          
+          {/* Add barriers along edges */}
+          <BarrierLine points={leftEdge} side="left" />
+          <BarrierLine points={rightEdge} side="right" />
+        </group>
+      )}
       
       {/* Add segment number display */}
       {debugState.showTrackSegmentIds && (
-        <group position={[0, 4, 0]}>
+        <group position={[centerPosition.x, centerPosition.y + 4, centerPosition.z]}>
           <Text
             color="#ffffff"
             fontSize={2}
@@ -124,6 +172,29 @@ export function TrackSegmentView({ entity }: TrackSegmentViewProps) {
           <meshStandardMaterial color="#FFFF00" />
         </mesh>
       ))}
+      
+      {/* Show start and end directions in debug mode */}
+      {debugState.showBoundaries && segment.startDirection && (
+        <arrowHelper
+          args={[
+            segment.startDirection.clone().normalize(),
+            startPos.clone(),
+            5,
+            0x00ff00
+          ]}
+        />
+      )}
+      
+      {debugState.showBoundaries && segment.endDirection && segment.endPosition && (
+        <arrowHelper
+          args={[
+            segment.endDirection.clone().normalize(),
+            segment.endPosition.clone(),
+            5,
+            0xff0000
+          ]}
+        />
+      )}
     </group>
   );
 } 

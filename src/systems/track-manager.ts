@@ -199,8 +199,9 @@ export function spawnInitialTrack(world: World): void {
   resetTrack();
   
   try {
-    // Spawn first 10 segments to ensure we have enough track visible at start
-    const initialSegmentCount = 10;
+    // Spawn first segments to ensure we have enough track visible at start
+    // Increased to show more of the track initially
+    const initialSegmentCount = 15;
     console.log(`Spawning initial ${initialSegmentCount} track segments`);
     
     // Always spawn first segment separately to ensure it's created properly
@@ -421,8 +422,8 @@ export function updateTrackSegments(world: World): void {
     return;
   }
   
-  // Spawn segments ahead of the player
-  const segmentsAhead = TRACK_CONFIG.renderDistance;
+  // Spawn segments ahead of the player - increased render distance to prevent track disappearing
+  const segmentsAhead = TRACK_CONFIG.renderDistance + 5;
   for (let i = currentSegmentIndex + 1; i <= currentSegmentIndex + segmentsAhead; i++) {
     if (!spawnedSegments[i]) {
       spawnSegment(world, i);
@@ -430,7 +431,7 @@ export function updateTrackSegments(world: World): void {
   }
   
   // Remove segments too far behind the player
-  const removeThreshold = currentSegmentIndex - 3; // Keep at least 3 segments behind player
+  const removeThreshold = currentSegmentIndex - 5; // Keep more segments behind player
   if (removeThreshold > 0) {
     for (let i = lowestActiveSegmentIndex; i < removeThreshold; i++) {
       removeSegment(i);
