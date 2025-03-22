@@ -8,7 +8,8 @@ const GRAVITY = new THREE.Vector3(0, -9.81, 0); // Gravity force
 const GROUND_LEVEL = 0.5; // Height of vehicle from ground
 const GROUND_FRICTION = 0.02; // Friction when on ground
 const REVERSE_SPEED_THRESHOLD = 0.5; // Threshold for applying reverse thrust
-const REVERSE_THRUST_MULTIPLIER = 100.0; // Strong reverse thrust for fast backwards movement
+const REVERSE_THRUST_MULTIPLIER = 2.0; // Strong reverse thrust for fast backwards movement
+const FORWARD_THRUST_MULTIPLIER = 5.0; // Increased forward thrust for faster forward movement
 const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
 /**
@@ -49,8 +50,8 @@ export function convertInputToMovement(world: World) {
 		
 		// Handle forward movement
 		if (input.forward > 0) {
-			// Forward thrust
-			const throttleForce = forwardDir.clone().multiplyScalar(input.forward * thrust * delta);
+			// Forward thrust with multiplier for faster movement
+			const throttleForce = forwardDir.clone().multiplyScalar(input.forward * thrust * FORWARD_THRUST_MULTIPLIER * delta);
 			force.add(throttleForce);
 		}
 		
