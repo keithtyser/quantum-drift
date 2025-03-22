@@ -7,9 +7,9 @@ const STEERING_SENSITIVITY = 2.0; // New sensitivity for keyboard steering
 const GRAVITY = new THREE.Vector3(0, -9.81, 0); // Gravity force
 const GROUND_LEVEL = 0.5; // Height of vehicle from ground
 const GROUND_FRICTION = 0.02; // Friction when on ground
-const REVERSE_SPEED_THRESHOLD = 1.0; // Increased threshold for more stable transition
-const BRAKE_POWER = 2.5; // How strong the brakes are
-const REVERSE_POWER = 0.7; // How powerful reversing is (fraction of forward thrust)
+const REVERSE_SPEED_THRESHOLD = 0.5; // Increased threshold for applying reverse thrust
+const REVERSE_THRUST_MULTIPLIER = 2.0; // Stronger reverse thrust to overcome friction
+const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
 /**
  * convertInputToMovement:
@@ -24,9 +24,10 @@ export function convertInputToMovement(world: World) {
 		// Calculate current speed
 		const speed = velocity.length();
 		
-		// Calculate vehicle's current direction relative to its forward vector
+		// Calculate vehicle's current travel direction relative to its facing
 		const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(transform.rotation);
-		const movingForward = velocity.dot(forwardDir) <= 0 ? false : true;
+		const velocityNormalized = speed > 0.01 ? velocity.clone().normalize() : new THREE.Vector3();
+		const movingForward = velocityNormalized.dot(forwardDir) > 0;
 		
 		// 1. Apply steering primarily from strafe input (A/D keys or left/right arrows)
 		// Steering effect scales with speed for more realistic feel
@@ -46,39 +47,48 @@ export function convertInputToMovement(world: World) {
 		transform.rotation.x *= 0.9; // Gradually level pitch
 		transform.rotation.z *= 0.9; // Gradually level roll
 		
-		// 2. Handle forward thrust
+		// 3. Handle forward movement
 		if (input.forward > 0) {
-			// Only apply forward thrust if not braking
-			if (!input.brake) {
-				const throttleForce = forwardDir.clone().multiplyScalar(input.forward * thrust * delta);
-				velocity.addScaledVector(throttleForce, 1.0); // Direct velocity modification for more responsive control
-			}
+			// Forward thrust
+			const throttleForce = forwardDir.clone().multiplyScalar(input.forward * thrust * delta);
+			force.add(throttleForce);
 		}
 		
-		// 3. Handle braking and reverse
+		// 4. Handle braking and reverse
 		if (input.brake) {
-			if (speed > REVERSE_SPEED_THRESHOLD && movingForward) {
-				// BRAKING: Apply strong braking when moving forward with good speed
-				velocity.multiplyScalar(1.0 - (BRAKE_POWER * delta));
-			} else if (speed < REVERSE_SPEED_THRESHOLD || !movingForward) {
-				// REVERSING: Apply reverse thrust when slow/stopped or already moving backward
-				const reverseDir = forwardDir.clone().negate();
-				velocity.addScaledVector(reverseDir, thrust * REVERSE_POWER * delta);
+			if (speed > REVERSE_SPEED_THRESHOLD) {
+				// Apply braking when moving at decent speed - stronger proportional to current speed
+				const brakeForce = velocity.clone().normalize().negate().multiplyScalar(thrust * BRAKE_FORCE_MULTIPLIER * delta);
+				force.add(brakeForce);
+			} else if (speed <= REVERSE_SPEED_THRESHOLD) {
+				// When below threshold, apply strong reverse thrust
+				// Apply direct velocity change for more immediate response
+				const reverseForce = forwardDir.clone().multiplyScalar(-thrust * REVERSE_THRUST_MULTIPLIER * delta);
+				
+				// Apply as both direct velocity change and force for more responsive reverse
+				velocity.addScaledVector(forwardDir, -thrust * delta * 0.5); // Direct velocity change
+				force.add(reverseForce); // Force-based change (builds up over time)
+				
+				// Apply additional reverse boost when completely stopped
+				if (speed < 0.1) {
+					velocity.addScaledVector(forwardDir, -thrust * delta); // Extra kick to get moving
+				}
 			}
-		} else if (!input.forward && !input.brake) {
-			// Apply natural slowdown when no input (more noticeable than just friction)
-			velocity.multiplyScalar(1.0 - (0.5 * delta));
 		}
 		
-		// 4. Apply ground contact and friction
+		// 5. Apply ground contact and friction
 		// Check if on ground (simple implementation)
 		if (transform.position.y <= GROUND_LEVEL) {
 			// Keep vehicle at ground level
 			transform.position.y = GROUND_LEVEL;
 			
+			// Apply ground friction based on whether we're braking or not
+			// Reduce friction when explicitly trying to reverse
+			const frictionMultiplier = (input.brake && speed <= REVERSE_SPEED_THRESHOLD) ? 0.3 : 1.0;
+			
 			// Apply ground friction (only to XZ plane)
 			const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
-			const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION);
+			const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION * frictionMultiplier);
 			velocity.add(frictionForce);
 			
 			// Apply additional turning force for sharper cornering
@@ -93,12 +103,10 @@ export function convertInputToMovement(world: World) {
 			velocity.add(GRAVITY.clone().multiplyScalar(delta));
 		}
 		
-		// 5. Apply boost
+		// 6. Apply boost
 		if (input.boost) {
-			velocity.addScaledVector(forwardDir, thrust * 2 * delta);
+			const boostForce = forwardDir.clone().multiplyScalar(thrust * 2 * delta);
+			force.add(boostForce);
 		}
-		
-		// 6. Clear accumulated force after applying direct velocity changes
-		force.set(0, 0, 0);
 	});
 }
