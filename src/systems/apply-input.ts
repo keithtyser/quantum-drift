@@ -8,7 +8,7 @@ const GRAVITY = new THREE.Vector3(0, -9.81, 0); // Gravity force
 const GROUND_LEVEL = 0.5; // Height of vehicle from ground
 const GROUND_FRICTION = 0.02; // Friction when on ground
 const REVERSE_SPEED_THRESHOLD = 0.5; // Increased threshold for applying reverse thrust
-const REVERSE_THRUST_MULTIPLIER = 2.0; // Stronger reverse thrust to overcome friction
+const REVERSE_THRUST_MULTIPLIER = 5.0; // Much stronger reverse thrust for faster backwards movement
 const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
 /**
@@ -61,17 +61,17 @@ export function convertInputToMovement(world: World) {
 				const brakeForce = velocity.clone().normalize().negate().multiplyScalar(thrust * BRAKE_FORCE_MULTIPLIER * delta);
 				force.add(brakeForce);
 			} else if (speed <= REVERSE_SPEED_THRESHOLD) {
-				// When below threshold, apply strong reverse thrust
+				// When below threshold, apply much stronger reverse thrust
 				// Apply direct velocity change for more immediate response
 				const reverseForce = forwardDir.clone().multiplyScalar(-thrust * REVERSE_THRUST_MULTIPLIER * delta);
 				
 				// Apply as both direct velocity change and force for more responsive reverse
-				velocity.addScaledVector(forwardDir, -thrust * delta * 0.5); // Direct velocity change
+				velocity.addScaledVector(forwardDir, -thrust * delta * 1.0); // Stronger direct velocity change
 				force.add(reverseForce); // Force-based change (builds up over time)
 				
 				// Apply additional reverse boost when completely stopped
 				if (speed < 0.1) {
-					velocity.addScaledVector(forwardDir, -thrust * delta); // Extra kick to get moving
+					velocity.addScaledVector(forwardDir, -thrust * delta * 2.0); // Extra kickstart
 				}
 			}
 		}
@@ -83,8 +83,8 @@ export function convertInputToMovement(world: World) {
 			transform.position.y = GROUND_LEVEL;
 			
 			// Apply ground friction based on whether we're braking or not
-			// Reduce friction when explicitly trying to reverse
-			const frictionMultiplier = (input.brake && speed <= REVERSE_SPEED_THRESHOLD) ? 0.3 : 1.0;
+			// Reduce friction significantly when explicitly trying to reverse
+			const frictionMultiplier = (input.brake && speed <= REVERSE_SPEED_THRESHOLD) ? 0.1 : 1.0;
 			
 			// Apply ground friction (only to XZ plane)
 			const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);

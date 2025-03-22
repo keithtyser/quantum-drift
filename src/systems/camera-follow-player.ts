@@ -27,57 +27,28 @@ const CAMERA_CONFIG = {
 		fovIncrease: 10,
 		// Maximum speed to use for calculations
 		maxSpeedReference: 30
-	},
-	// Reverse camera settings
-	reverseOffset: new THREE.Vector3(0, 4, -8), // Better position when reversing - further in front
-	reverseLookAtDistance: 5, // Look behind the player when reversing
-	reverseThreshold: -0.3 // More lenient threshold for reversing detection
+	}
 };
 
 export const cameraFollowPlayer = (world: World) => {
-	const player = world.queryFirst(IsPlayer, Transform, Movement, Input);
+	const player = world.queryFirst(IsPlayer, Transform, Movement);
 	if (!player) return;
 
 	const playerTransform = player.get(Transform)!;
 	const playerMovement = player.get(Movement)!;
-	const playerInput = player.get(Input)!;
 
-	// Calculate velocity direction relative to forward direction
-	const playerForwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
-	
-	// More robust movement detection by looking at both velocity and input
-	let movingForward = true;  // Default to forward if we can't determine
-	
-	if (playerMovement.velocity.length() > 0.1) {
-		// If we have significant velocity, base direction on velocity vs forward direction
-		const velocityNormalized = playerMovement.velocity.clone().normalize();
-		const velocityAlignment = velocityNormalized.dot(playerForwardDir);
-		movingForward = velocityAlignment >= CAMERA_CONFIG.reverseThreshold;
-	} else {
-		// When nearly stopped, use input to predict direction
-		movingForward = !playerInput.brake; // If brake is pressed while stopped, anticipate reverse
-	}
-	
 	// Calculate a speed factor (0-1) for dynamic adjustments
 	const speed = playerMovement.velocity.length();
 	const speedFactor = CAMERA_CONFIG.speedEffect.enabled 
 		? Math.min(speed / CAMERA_CONFIG.speedEffect.maxSpeedReference, 1)
 		: 0;
 
-	// Choose appropriate offset based on movement direction
-	const baseOffset = movingForward ? 
-		CAMERA_CONFIG.offset.clone() : 
-		CAMERA_CONFIG.reverseOffset.clone();
-	
 	// Calculate the desired camera position with speed adjustments
-	const dynamicOffset = baseOffset.clone();
+	const dynamicOffset = CAMERA_CONFIG.offset.clone();
 	
-	// Apply speed effects if moving forward
-	if (movingForward) {
-		// Lower camera and pull it back at higher speeds
-		dynamicOffset.y -= CAMERA_CONFIG.speedEffect.heightDecrease * speedFactor;
-		dynamicOffset.z += CAMERA_CONFIG.speedEffect.distanceIncrease * speedFactor;
-	}
+	// Lower camera and pull it back at higher speeds
+	dynamicOffset.y -= CAMERA_CONFIG.speedEffect.heightDecrease * speedFactor;
+	dynamicOffset.z += CAMERA_CONFIG.speedEffect.distanceIncrease * speedFactor;
 
 	const offsetRotated = dynamicOffset.clone().applyEuler(
 		new THREE.Euler(
@@ -91,21 +62,14 @@ export const cameraFollowPlayer = (world: World) => {
 		// Calculate target position
 		const targetPosition = new THREE.Vector3().copy(playerTransform.position).add(offsetRotated);
 
-		// Calculate look-at point based on movement direction
-		const lookDistance = movingForward ? 
-			CAMERA_CONFIG.lookAheadDistance : 
-			CAMERA_CONFIG.reverseLookAtDistance;
-			
+		// Calculate look-at point (ahead of the player)
+		const playerForwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
 		const lookAtPoint = new THREE.Vector3()
 			.copy(playerTransform.position)
-			.add(playerForwardDir.clone().multiplyScalar(lookDistance));
+			.add(playerForwardDir.clone().multiplyScalar(CAMERA_CONFIG.lookAheadDistance));
 
-		// Smoothly move camera position with faster transition when direction changes
-		const currentPositionDamping = movingForward === !playerInput.brake ? 
-			CAMERA_CONFIG.positionDamping : 
-			CAMERA_CONFIG.positionDamping * 1.5; // Faster transition when switching directions
-			
-		cameraTransform.position.lerp(targetPosition, currentPositionDamping);
+		// Smoothly move camera position
+		cameraTransform.position.lerp(targetPosition, CAMERA_CONFIG.positionDamping);
 
 		// Calculate and apply camera rotation
 		const targetRotation = new THREE.Quaternion().setFromRotationMatrix(
