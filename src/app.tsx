@@ -13,8 +13,15 @@ export function App() {
 	
 	return (
 		<>
-			<Canvas style={{ background: 'white' }} shadows={true} gl={{ alpha: false }}>
+			<Canvas style={{ background: 'black' }} shadows={true} gl={{ alpha: false }}>
 				<color attach="background" args={[new Color('#87CEEB')]} />
+				
+				{/* Debug sphere to confirm rendering works */}
+				<mesh position={[0, 0, 0]}>
+					<sphereGeometry args={[1, 16, 16]} />
+					<meshStandardMaterial color="hotpink" />
+				</mesh>
+				
 				<Startup initialCameraPosition={[0, 5, 10]} />
 				<GameLoop />
 

@@ -230,215 +230,58 @@ function DebugBoundingBox({ min, max }: { min: THREE.Vector3, max: THREE.Vector3
   );
 }
 
-// Render a single track segment
+// Render a single track segment - simplified for debugging
 function TrackSegmentView({ entity }: { entity: Entity }) {
   const segment = entity.get(TrackSegment);
-  if (!segment) return null;
+  if (!segment) {
+    console.error("No TrackSegment trait found on entity");
+    return null;
+  }
   
-  // Use control points to create track geometry
+  // Get control points from segment
   const controlPoints = segment.controlPoints;
   if (!controlPoints || controlPoints.length < 2) {
     console.error("TrackSegment has insufficient control points", segment);
     return null;
   }
   
-  // Create the edge points
-  const [leftEdge, rightEdge] = useMemo(() => 
-    createTrackEdges(segment), [segment.controlPoints, segment.width]
-  );
+  console.log(`Rendering segment ${segment.index} with ${controlPoints.length} control points`);
   
-  if (leftEdge.length === 0 || rightEdge.length === 0) {
-    console.error("Failed to create track edges", segment);
-    return null;
-  }
-  
-  // Debug bounding box
-  const boundingBoxMin = useMemo(() => {
-    const min = new THREE.Vector3(Infinity, Infinity, Infinity);
-    [...leftEdge, ...rightEdge].forEach(p => {
-      min.x = Math.min(min.x, p.x);
-      min.y = Math.min(min.y, p.y);
-      min.z = Math.min(min.z, p.z);
-    });
-    return min;
-  }, [leftEdge, rightEdge]);
-  
-  const boundingBoxMax = useMemo(() => {
-    const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-    [...leftEdge, ...rightEdge].forEach(p => {
-      max.x = Math.max(max.x, p.x);
-      max.y = Math.max(max.y, p.y);
-      max.z = Math.max(max.z, p.z);
-    });
-    return max;
-  }, [leftEdge, rightEdge]);
-  
-  // Create a simpler track visualization using a plane mesh for each segment
-  const segmentMesh = useMemo(() => {
-    if (leftEdge.length < 2 || rightEdge.length < 2) return null;
-    
-    const vertices: number[] = [];
-    const indices: number[] = [];
-    const uvs: number[] = []; // Add UV coordinates for texturing
-    
-    // Create vertices by combining left and right edges
-    for (let i = 0; i < leftEdge.length; i++) {
-      // Left edge vertex
-      vertices.push(leftEdge[i].x, leftEdge[i].y, leftEdge[i].z);
-      // Add UV - left edge is u=0
-      uvs.push(0, i / (leftEdge.length - 1));
-      
-      // Right edge vertex
-      vertices.push(rightEdge[i].x, rightEdge[i].y, rightEdge[i].z);
-      // Add UV - right edge is u=1
-      uvs.push(1, i / (rightEdge.length - 1));
-    }
-    
-    // Create triangles (two triangles per quad)
-    for (let i = 0; i < leftEdge.length - 1; i++) {
-      const i1 = i * 2;
-      const i2 = i1 + 1;
-      const i3 = i1 + 2;
-      const i4 = i1 + 3;
-      
-      // First triangle
-      indices.push(i1, i2, i3);
-      // Second triangle
-      indices.push(i2, i4, i3);
-    }
-    
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    
-    return geometry;
-  }, [leftEdge, rightEdge]);
-  
-  // For edge detection, create slightly elevated invisible walls
-  const createBoundaryWalls = () => {
-    if (leftEdge.length < 2 || rightEdge.length < 2) return null;
-    
-    // Create invisible collision walls along track edges (slightly inside the visual edges)
-    const wallHeight = 1.5; // Height of invisible collision wall
-    
-    return (
-      <>
-        {/* Left boundary wall */}
-        <group>
-          {leftEdge.map((point, index) => {
-            if (index === leftEdge.length - 1) return null;
-            const nextPoint = leftEdge[index + 1];
-            const midPoint = new THREE.Vector3().lerpVectors(point, nextPoint, 0.5);
-            
-            // Calculate wall width (distance between points)
-            const width = point.distanceTo(nextPoint);
-            
-            // Calculate rotation to align with the edge
-            const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
-            const angle = Math.atan2(direction.x, direction.z);
-            
-            return (
-              <Box 
-                key={`left-wall-${index}`}
-                position={[midPoint.x, midPoint.y + wallHeight/2, midPoint.z]}
-                rotation={[0, -angle, 0]}
-                args={[width, wallHeight, 0.1]}
-              >
-                <meshBasicMaterial visible={debugState.showBoundaries} color="#ff000050" transparent opacity={0.3} />
-              </Box>
-            );
-          })}
-        </group>
-        
-        {/* Right boundary wall */}
-        <group>
-          {rightEdge.map((point, index) => {
-            if (index === rightEdge.length - 1) return null;
-            const nextPoint = rightEdge[index + 1];
-            const midPoint = new THREE.Vector3().lerpVectors(point, nextPoint, 0.5);
-            
-            // Calculate wall width (distance between points)
-            const width = point.distanceTo(nextPoint);
-            
-            // Calculate rotation to align with the edge
-            const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
-            const angle = Math.atan2(direction.x, direction.z);
-            
-            return (
-              <Box 
-                key={`right-wall-${index}`}
-                position={[midPoint.x, midPoint.y + wallHeight/2, midPoint.z]}
-                rotation={[0, -angle, 0]}
-                args={[width, wallHeight, 0.1]}
-              >
-                <meshBasicMaterial visible={debugState.showBoundaries} color="#0000ff50" transparent opacity={0.3} />
-              </Box>
-            );
-          })}
-        </group>
-      </>
-    );
-  };
-  
+  // Create a simple box for each segment that follows the first control point
   return (
-    <group position={[0, 0, 0]}>
-      {/* Track center line for debugging */}
-      {debugState.showControlPoints && (
-        <Line
-          points={controlPoints}
-          color="#ffff00"
-          lineWidth={2}
-          dashed={true}
-          dashSize={1}
-          dashScale={1}
+    <group position={controlPoints[0]}>
+      <mesh position={[0, -0.05, -segment.length/2]}>
+        <boxGeometry args={[segment.width, 0.1, segment.length]} />
+        <meshStandardMaterial 
+          color={segment.type === 'straight' ? '#444444' : '#446688'} 
+          roughness={0.8}
         />
-      )}
+      </mesh>
       
-      {/* Control point visualization */}
-      {debugState.showControlPoints && controlPoints.map((point, index) => (
-        <mesh key={`control-${index}`} position={point}>
-          <sphereGeometry args={[0.5, 8, 8]} />
-          <meshBasicMaterial color="#ffff00" />
-        </mesh>
-      ))}
+      {/* Simple barriers on left and right edges */}
+      <group position={[segment.width/2, 0.5, -segment.length/2]}>
+        <boxGeometry args={[0.5, 1, segment.length]} />
+        <meshStandardMaterial color="#ff4444" />
+      </group>
       
-      {/* Track surface with patterns */}
-      {segmentMesh && (
-        <TrackSurfacePattern segment={segment} geometry={segmentMesh} />
-      )}
+      <group position={[-segment.width/2, 0.5, -segment.length/2]}>
+        <boxGeometry args={[0.5, 1, segment.length]} />
+        <meshStandardMaterial color="#4444ff" />
+      </group>
       
-      {/* Track edge barriers */}
-      <BarrierLine points={leftEdge} side="left" />
-      <BarrierLine points={rightEdge} side="right" />
-      
-      {/* Invisible boundary walls for collision */}
-      {createBoundaryWalls()}
-      
-      {/* Debug segment ID */}
-      {debugState.showTrackSegmentIds && (
+      {/* Debug ID display */}
+      <group position={[0, 3, -segment.length/2]}>
         <Text
-          position={[
-            controlPoints[Math.floor(controlPoints.length / 2)].x,
-            controlPoints[Math.floor(controlPoints.length / 2)].y + 3,
-            controlPoints[Math.floor(controlPoints.length / 2)].z,
-          ]}
-          fontSize={2}
           color="#ffffff"
+          fontSize={2}
           anchorX="center"
           anchorY="middle"
           outlineWidth={0.1}
           outlineColor="#000000"
         >
-          {`ID: ${segment.index} (${segment.type})`}
+          {`Segment ${segment.index}`}
         </Text>
-      )}
-      
-      {/* Debug bounding box */}
-      {debugState.showBoundaries && (
-        <DebugBoundingBox min={boundingBoxMin} max={boundingBoxMax} />
-      )}
+      </group>
     </group>
   );
 }
@@ -497,6 +340,7 @@ export function TrackRenderer() {
   
   // Log segment count for debugging
   console.log(`TrackRenderer: Found ${segments.length} track segments`);
+  
   if (segments.length > 0) {
     const firstSegment = segments[0].get(TrackSegment);
     console.log("First segment:", { 
@@ -514,8 +358,32 @@ export function TrackRenderer() {
         <meshStandardMaterial color="red" />
       </mesh>
       
+      {/* Basic floor grid for orientation */}
+      <Grid
+        args={[1000, 1000]}
+        cellSize={5}
+        cellThickness={0.3}
+        cellColor="#333333"
+        sectionSize={50}
+        sectionThickness={1}
+        sectionColor="#666666"
+        fadeDistance={1000}
+        position={[0, -0.5, 0]}
+      />
+      
+      {/* Simplify track rendering for now */}
+      {segments.length > 0 && (
+        <mesh position={[0, 0, -25]}>
+          <boxGeometry args={[20, 0.1, 50]} />
+          <meshStandardMaterial color="#444444" />
+        </mesh>
+      )}
+      
+      {/* Only render TrackView for the main track entity if it exists */}
       {track && !track.has(TrackSegment) && <TrackView entity={track} />}
-      {segments.map(entity => (
+      
+      {/* Render first few segments only for testing */}
+      {segments.slice(0, 3).map(entity => (
         <TrackSegmentView key={entity.id.toString()} entity={entity} />
       ))}
     </>

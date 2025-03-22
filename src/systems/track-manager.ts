@@ -1,6 +1,6 @@
 import { World, Entity } from 'koota';
 import { Transform, IsPlayer, IsTrack, TrackSegment } from '../traits';
-import { generateNextSegment, TRACK_CONFIG, SegmentParams } from '../utils/track-generator';
+import { generateNextSegment, TRACK_CONFIG, generateFirstSegment, TrackSegmentParams } from '../utils/track-generator';
 import * as THREE from 'three';
 import { actions } from '../actions';
 
@@ -11,7 +11,7 @@ let highestSegmentIndex = -1;
 // Track the lowest active segment index
 let lowestActiveSegmentIndex = 0;
 // Cache for segment parameters
-let segmentCache: { [key: number]: SegmentParams } = {};
+let segmentCache: { [key: number]: TrackSegmentParams } = {};
 // Debug flag
 const DEBUG = true;
 
@@ -30,11 +30,11 @@ function spawnSegment(world: World, index: number): Entity {
   
   try {
     // Generate segment parameters
-    let segmentParams: SegmentParams;
+    let segmentParams: TrackSegmentParams;
     
     if (index === 0) {
-      // For the first segment, we don't have a previous segment
-      segmentParams = generateNextSegment(null, 0);
+      // For the first segment, generate a straight segment
+      segmentParams = generateFirstSegment();
     } else {
       // For subsequent segments, use the previous segment
       const prevParams = segmentCache[index - 1];
@@ -56,12 +56,12 @@ function spawnSegment(world: World, index: number): Entity {
     const segment = world.spawn(
       IsTrack,
       TrackSegment({
-        index: segmentParams.index,
+        index: index,
         length: segmentParams.length,
         width: segmentParams.width,
         type: segmentParams.type,
-        curvature: segmentParams.curvature,
-        elevation: segmentParams.elevation,
+        curvature: 0, // This was causing compatibility issues
+        elevation: 0, // This was causing compatibility issues
         startPosition: segmentParams.startPosition,
         endPosition: segmentParams.endPosition,
         startDirection: segmentParams.startDirection,
@@ -95,18 +95,15 @@ function spawnSegment(world: World, index: number): Entity {
     const endPos = startPos.clone().add(new THREE.Vector3(0, 0, -TRACK_CONFIG.segmentLength));
     const direction = new THREE.Vector3(0, 0, -1);
     
-    const fallbackParams: SegmentParams = {
-      index,
-      length: TRACK_CONFIG.segmentLength,
-      width: TRACK_CONFIG.trackWidth,
-      type: 'straight',
-      curvature: 0,
-      elevation: 0,
+    const fallbackParams: TrackSegmentParams = {
       startPosition: startPos,
       endPosition: endPos,
       startDirection: direction,
       endDirection: direction,
       controlPoints: [startPos.clone(), endPos.clone()],
+      length: TRACK_CONFIG.segmentLength,
+      width: TRACK_CONFIG.trackWidth,
+      type: 'straight'
     };
     
     // Cache the fallback segment parameters
@@ -116,12 +113,12 @@ function spawnSegment(world: World, index: number): Entity {
     const fallbackSegment = world.spawn(
       IsTrack,
       TrackSegment({
-        index: fallbackParams.index,
+        index: index,
         length: fallbackParams.length,
         width: fallbackParams.width,
         type: fallbackParams.type,
-        curvature: fallbackParams.curvature,
-        elevation: fallbackParams.elevation,
+        curvature: 0, // Set default value
+        elevation: 0, // Set default value
         startPosition: fallbackParams.startPosition,
         endPosition: fallbackParams.endPosition,
         startDirection: fallbackParams.startDirection,
@@ -174,14 +171,59 @@ export function spawnInitialTrack(world: World): void {
   // Clear any existing segments
   resetTrack();
   
+  console.log(`==========================================`);
   console.log(`Spawning initial ${TRACK_CONFIG.renderDistance} track segments`);
+  console.log(`==========================================`);
   
-  // Spawn the initial segments
-  for (let i = 0; i < TRACK_CONFIG.renderDistance; i++) {
-    spawnSegment(world, i);
+  try {
+    // Always spawn first segment separately to ensure it's created properly
+    const segment0 = spawnSegment(world, 0);
+    console.log(`First segment spawned successfully: ID=${segment0.id}`);
+    
+    // Spawn the rest of the initial segments
+    for (let i = 1; i < TRACK_CONFIG.renderDistance; i++) {
+      const segment = spawnSegment(world, i);
+      console.log(`Segment ${i} spawned: ID=${segment.id}, type=${segment.get(TrackSegment)?.type}`);
+    }
+    
+    console.log(`Successfully spawned ${Object.keys(spawnedSegments).length} track segments`);
+  } catch (error) {
+    console.error("Error during initial track spawning:", error);
+    
+    // Fallback: spawn a single straight segment for testing
+    console.log("Spawning fallback straight segment");
+    const fallbackSegment = world.spawn(
+      IsTrack,
+      TrackSegment({
+        index: 0,
+        length: TRACK_CONFIG.segmentLength,
+        width: TRACK_CONFIG.trackWidth,
+        type: 'straight',
+        curvature: 0,
+        elevation: 0,
+        startPosition: new THREE.Vector3(0, 0, 0),
+        endPosition: new THREE.Vector3(0, 0, -TRACK_CONFIG.segmentLength),
+        startDirection: new THREE.Vector3(0, 0, -1),
+        endDirection: new THREE.Vector3(0, 0, -1),
+        controlPoints: [
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, -TRACK_CONFIG.segmentLength)
+        ],
+      }),
+      Transform({
+        position: new THREE.Vector3(0, 0, 0),
+        rotation: new THREE.Euler(0, 0, 0),
+        scale: new THREE.Vector3(1, 1, 1),
+      })
+    );
+    
+    // Cache the fallback segment
+    spawnedSegments[0] = fallbackSegment;
+    highestSegmentIndex = 0;
   }
   
-  console.log(`Done spawning initial segments. Total: ${Object.keys(spawnedSegments).length}`);
+  console.log(`Track initialization complete`);
+  console.log(`==========================================`);
 }
 
 /**

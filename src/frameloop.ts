@@ -15,9 +15,16 @@ import { IsPlayer, Transform } from './traits';
 
 export function GameLoop() {
 	const world = useWorld();
+	let frameCount = 0;
 
 	useFrame(() => {
 		if (!world) return;
+		
+		// Only log every 100 frames to avoid console spam
+		frameCount++;
+		if (frameCount % 100 === 0) {
+			console.log(`Frame ${frameCount} executing...`);
+		}
 
 		// Start
 		updateTime(world);
@@ -47,7 +54,7 @@ export function GameLoop() {
 		syncView(world);
 		
 		// Debug output every 60 frames
-		if (Math.floor(Date.now() / 1000) % 2 === 0) {
+		if (frameCount % 60 === 0) {
 			const player = world.queryFirst(IsPlayer, Transform);
 			if (player) {
 				const transform = player.get(Transform);
