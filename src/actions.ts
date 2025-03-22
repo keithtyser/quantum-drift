@@ -1,6 +1,7 @@
 import { createActions } from 'koota';
 import * as THREE from 'three';
 import { IsPlayer, Transform, IsCamera, IsTrack, Movement, Input, MaxSpeed } from './traits';
+import { spawnInitialTrack } from './systems/track-manager';
 
 export const actions = createActions((world) => ({
 	spawnPlayer: () => world.spawn(
@@ -25,6 +26,12 @@ export const actions = createActions((world) => ({
 		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
 	},
 	spawnTrack: () => {
-		return world.spawn(IsTrack, Transform({ position: new THREE.Vector3(0, -0.5, 0) }));
+		// Create a basic track entity as a reference ground plane
+		const trackEntity = world.spawn(IsTrack, Transform({ position: new THREE.Vector3(0, -0.5, 0) }));
+		
+		// Initialize procedural track segments
+		spawnInitialTrack(world);
+		
+		return trackEntity;
 	},
 }));

@@ -8,6 +8,7 @@ import { convertInputToMovement } from './systems/apply-input';
 import { applyForce } from './systems/apply-force';
 import { limitSpeed } from './systems/limit-speed';
 import { cameraFollowPlayer } from './systems/camera-follow-player';
+import { updateTrackSegments } from './systems/track-manager';
 
 export function GameLoop() {
 	const world = useWorld();
@@ -24,6 +25,9 @@ export function GameLoop() {
 		applyForce(world);
 		moveEntities(world);
 		limitSpeed(world);
+		
+		// Track updates
+		updateTrackSegments(world);
 		
 		// Camera updates
 		cameraFollowPlayer(world);
