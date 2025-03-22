@@ -9,11 +9,16 @@ import { applyForce } from './systems/apply-force';
 import { limitSpeed } from './systems/limit-speed';
 import { cameraFollowPlayer } from './systems/camera-follow-player';
 import { updateTrackSegments } from './systems/track-manager';
+import { enforceTrackBoundaries } from './systems/track-boundary';
+import { updateSpatialHashing } from './systems/update-spatial-hashing';
+import { IsPlayer, Transform } from './traits';
 
 export function GameLoop() {
 	const world = useWorld();
 
 	useFrame(() => {
+		if (!world) return;
+
 		// Start
 		updateTime(world);
 
@@ -29,11 +34,26 @@ export function GameLoop() {
 		// Track updates
 		updateTrackSegments(world);
 		
+		// Track boundary collision detection
+		enforceTrackBoundaries(world);
+		
+		// Spatial hashing for optimized collision detection
+		updateSpatialHashing(world);
+		
 		// Camera updates
 		cameraFollowPlayer(world);
 
 		// Sync view state
 		syncView(world);
+		
+		// Debug output every 60 frames
+		if (Math.floor(Date.now() / 1000) % 2 === 0) {
+			const player = world.queryFirst(IsPlayer, Transform);
+			if (player) {
+				const transform = player.get(Transform);
+				console.log('Player position:', transform?.position.toArray());
+			}
+		}
 	});
 
 	return null;

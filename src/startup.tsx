@@ -1,38 +1,46 @@
 import { useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
 import { useWorld, useActions } from 'koota/react';
-import { sortEntitiesByDistance } from './utils/sort-entities-by-distance';
 import { actions } from './actions';
-import { resetTrack } from './systems/track-manager';
-import { updateSpatialHashing } from './systems/update-spatial-hashing';
+import { DebugControls } from './components/debug-controls';
 
-export function Startup() {
+/**
+ * Initializes the world and spawns necessary entities
+ */
+export function Startup({ initialCameraPosition = [0, 5, 10] }: { initialCameraPosition?: [number, number, number] }) {
 	const world = useWorld();
 	const { spawnCamera, spawnPlayer, spawnTrack } = useActions(actions);
 
-	// When component mounts, spawn initial entities
 	useEffect(() => {
-		// Spawn camera
-		const camera = spawnCamera([0, 4, 15]);
-		// Spawn player
-		const player = spawnPlayer();
-		// Spawn ground track
-		const track = spawnTrack();
+		// Initialize world with required entities
+		if (world) {
+			console.log('Starting up game...');
 
-		// Clean up entities when component unmounts
-		return () => {
-			player.destroy();
-			track.destroy();
-			camera.destroy();
-			// Reset track manager state to clean up any track segments
-			resetTrack();
-		};
-	}, [spawnCamera, spawnPlayer, spawnTrack]);
+			// Spawn entities
+			const trackEntity = spawnTrack();
+			const playerEntity = spawnPlayer();
+			spawnCamera(initialCameraPosition);
+			
+			console.log('Entities spawned:', {
+				track: trackEntity?.id,
+				player: playerEntity?.id
+			});
 
-	// Update spatial hashing
-	useFrame(() => {
-		updateSpatialHashing(world);
-	});
+			// Reset player when double tap 'r' key
+			let lastRKeyTime = 0;
+			document.addEventListener('keydown', (e) => {
+				if (e.key === 'r') {
+					const now = Date.now();
+					if (now - lastRKeyTime < 500) { // 500ms window for double tap
+						console.log('Double-tap R detected - reset player would go here');
+						// This would need a resetPlayer action to be implemented
+					}
+					lastRKeyTime = now;
+				}
+			});
+		}
+	}, [world, spawnCamera, spawnPlayer, spawnTrack, initialCameraPosition]);
 
-	return null;
+	// We've moved the game loop logic to frameloop.ts, so we don't need it here
+
+	return <DebugControls />;
 }

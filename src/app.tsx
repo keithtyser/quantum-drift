@@ -6,8 +6,11 @@ import { PostProcessing } from './components/postprocessing';
 import { GameLoop } from './frameloop';
 import { Startup } from './startup';
 import { Color } from 'three';
+import { DebugControls } from './components/debug-controls';
 
 export function App() {
+	console.log("App component rendering");
+	
 	return (
 		<>
 			<Canvas style={{ background: 'white' }} shadows={true} gl={{ alpha: false }}>
@@ -25,6 +28,9 @@ export function App() {
 				
 				<PostProcessing />
 			</Canvas>
+			
+			{/* Render debug controls outside of Canvas so they're always visible */}
+			<DebugControls />
 		</>
 	);
 }

@@ -486,27 +486,34 @@ export function TrackView({ entity }: { entity: Entity }) {
 
 // Query for all track segments and render them
 export function TrackRenderer() {
+  console.log("TrackRenderer component rendering");
+  
   // Get the main track entity (basic ground plane)
   const track = useQueryFirst(IsTrack, Transform);
+  console.log("Main track entity:", track?.id);
   
   // Get all track segment entities
   const segments = useQuery(IsTrack, TrackSegment);
   
   // Log segment count for debugging
-  useEffect(() => {
-    console.log(`TrackRenderer: Found ${segments.length} track segments`);
-    if (segments.length > 0) {
-      const firstSegment = segments[0].get(TrackSegment);
-      console.log("First segment:", { 
-        index: firstSegment?.index,
-        type: firstSegment?.type,
-        controlPoints: firstSegment?.controlPoints?.length
-      });
-    }
-  }, [segments.length]);
+  console.log(`TrackRenderer: Found ${segments.length} track segments`);
+  if (segments.length > 0) {
+    const firstSegment = segments[0].get(TrackSegment);
+    console.log("First segment:", { 
+      index: firstSegment?.index,
+      type: firstSegment?.type,
+      controlPoints: firstSegment?.controlPoints?.length
+    });
+  }
   
   return (
     <>
+      {/* Debug test sphere to verify rendering works */}
+      <mesh position={[0, 5, 0]}>
+        <sphereGeometry args={[2, 32, 32]} />
+        <meshStandardMaterial color="red" />
+      </mesh>
+      
       {track && !track.has(TrackSegment) && <TrackView entity={track} />}
       {segments.map(entity => (
         <TrackSegmentView key={entity.id.toString()} entity={entity} />
