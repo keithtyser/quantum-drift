@@ -8,7 +8,7 @@ const GRAVITY = new THREE.Vector3(0, -9.81, 0); // Gravity force
 const GROUND_LEVEL = 0.5; // Height of vehicle from ground
 const GROUND_FRICTION = 0.02; // Friction when on ground
 const REVERSE_SPEED_THRESHOLD = 0.5; // Increased threshold for applying reverse thrust
-const REVERSE_THRUST_MULTIPLIER = 10.0; // Extremely strong reverse thrust for much faster backwards movement
+const REVERSE_THRUST_MULTIPLIER = 100.0; // Extremely strong reverse thrust for much faster backwards movement
 const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
 /**
@@ -62,16 +62,19 @@ export function convertInputToMovement(world: World) {
 				force.add(brakeForce);
 			} else if (speed <= REVERSE_SPEED_THRESHOLD) {
 				// When below threshold, apply extremely strong reverse thrust
-				// Apply direct velocity change for more immediate response
+				// Apply more force-based acceleration and less direct velocity change for smoother acceleration
+				
+				// Primary reverse force - distribute more to gradual force and less to immediate velocity changes
 				const reverseForce = forwardDir.clone().multiplyScalar(-thrust * REVERSE_THRUST_MULTIPLIER * delta);
 				
-				// Apply as both direct velocity change and force for more responsive reverse
-				velocity.addScaledVector(forwardDir, -thrust * delta * 2.5); // Much stronger direct velocity change
-				force.add(reverseForce); // Force-based change (builds up over time)
+				// Apply more force-based change (builds up over time) and less direct velocity change
+				// This creates smoother acceleration that builds up instead of jerky movements
+				velocity.addScaledVector(forwardDir, -thrust * delta * 1.5); // Reduced from 2.5 for smoother acceleration
+				force.add(reverseForce); 
 				
-				// Apply additional reverse boost when completely stopped
+				// Apply reduced kickstart but still maintain quick start
 				if (speed < 0.1) {
-					velocity.addScaledVector(forwardDir, -thrust * delta * 5.0); // Massive kickstart
+					velocity.addScaledVector(forwardDir, -thrust * delta * 3.0); // Reduced from 5.0 for smoother initial acceleration
 				}
 			}
 		}

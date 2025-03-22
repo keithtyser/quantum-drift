@@ -11,7 +11,7 @@ const CAMERA_CONFIG = {
 	// How much the camera rotates with the player
 	rotationInfluence: 0.85,
 	// Damping factors for smooth transitions
-	positionDamping: 0.04, // Slower for smoother camera
+	positionDamping: 0.1, // Increased from 0.04 for smoother camera during high speed changes
 	rotationDamping: 0.05, // Slower for smoother rotation
 	// Limits for camera movement
 	minDistance: 7,
@@ -50,6 +50,20 @@ export const cameraFollowPlayer = (world: World) => {
 	dynamicOffset.y -= CAMERA_CONFIG.speedEffect.heightDecrease * speedFactor;
 	dynamicOffset.z += CAMERA_CONFIG.speedEffect.distanceIncrease * speedFactor;
 
+	// Calculate if we're in reverse by checking velocity direction relative to facing
+	const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
+	const velocityNormalized = speed > 0.01 ? playerMovement.velocity.clone().normalize() : new THREE.Vector3();
+	const reverseDotProduct = velocityNormalized.dot(forwardDir);
+	const movingBackward = reverseDotProduct < -0.5 && speed > 1;
+
+	// Adjust offset for reversed movement to stabilize camera
+	if (movingBackward) {
+		// When reversing, move camera slightly higher and further back for stability
+		// This prevents the camera from getting too close to the vehicle during high-speed reversing
+		dynamicOffset.y += 0.5; // Raise camera a bit higher when reversing
+		dynamicOffset.z += 2.0; // Pull camera back more when reversing
+	}
+
 	const offsetRotated = dynamicOffset.clone().applyEuler(
 		new THREE.Euler(
 			0, // Keep camera level horizontally
@@ -68,8 +82,15 @@ export const cameraFollowPlayer = (world: World) => {
 			.copy(playerTransform.position)
 			.add(playerForwardDir.clone().multiplyScalar(CAMERA_CONFIG.lookAheadDistance));
 
-		// Smoothly move camera position
-		cameraTransform.position.lerp(targetPosition, CAMERA_CONFIG.positionDamping);
+		// Increase damping during high-speed reverse to reduce camera shake
+		// Higher damping = more responsive camera that follows more directly
+		// For very high reverse speeds, use an even higher damping value for stability
+		const effectiveDamping = movingBackward 
+			? Math.min(0.25, CAMERA_CONFIG.positionDamping * (1 + Math.abs(reverseDotProduct) * speed * 0.01))
+			: CAMERA_CONFIG.positionDamping;
+			
+		// Smoothly move camera position with calculated damping value
+		cameraTransform.position.lerp(targetPosition, effectiveDamping);
 
 		// Calculate and apply camera rotation
 		const targetRotation = new THREE.Quaternion().setFromRotationMatrix(
