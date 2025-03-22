@@ -2,48 +2,94 @@ import { World } from 'koota';
 import { Input, Movement, Time, Transform } from '../traits';
 import * as THREE from 'three';
 
-const MOUSE_SENSITIVITY = 0.005; // Reduced sensitivity to minimize direct rotation
+const MOUSE_SENSITIVITY = 0.004; // Maintained for optional mouse control
+const STEERING_SENSITIVITY = 2.0; // New sensitivity for keyboard steering
+const GRAVITY = new THREE.Vector3(0, -9.81, 0); // Gravity force
+const GROUND_LEVEL = 0.5; // Height of vehicle from ground
+const GROUND_FRICTION = 0.02; // Friction when on ground
+const REVERSE_SPEED_THRESHOLD = 0.2; // Speed threshold for applying reverse thrust
 
 /**
  * convertInputToMovement:
- * Applies mouse pitch & yaw, forward & strafe thrust,
- * brake damping, and optional boost factor.
+ * Applies vehicle-like controls for racing on a track
  */
 export function convertInputToMovement(world: World) {
 	const { delta } = world.get(Time)!;
 
 	world.query(Input, Transform, Movement).updateEach(([input, transform, movement]) => {
-		const { velocity, thrust } = movement;
-
-		transform.rotation.x -= input.mouseDelta.y * MOUSE_SENSITIVITY;
-		transform.rotation.y -= input.mouseDelta.x * MOUSE_SENSITIVITY;
-
-		// Apply roll based on Q/R keys
-		const ROLL_SPEED = 3.0 * delta; // Adjust roll speed as needed
-		if (input.roll !== 0) {
-			transform.rotation.z += input.roll * ROLL_SPEED;
+		const { velocity, thrust, force } = movement;
+		
+		// Calculate current speed
+		const speed = velocity.length();
+		
+		// 1. Apply steering primarily from strafe input (A/D keys or left/right arrows)
+		// Steering effect scales with speed for more realistic feel
+		const steeringFactor = Math.min(1, speed / 5);
+		
+		if (input.strafe !== 0) {
+			// Use strafe input for main steering
+			const steeringAmount = input.strafe * STEERING_SENSITIVITY * delta * steeringFactor;
+			transform.rotation.y -= steeringAmount;
+		} else if (input.mouseDelta.x !== 0) {
+			// Fallback to mouse steering if no keyboard input
+			const mouseSteeringAmount = input.mouseDelta.x * MOUSE_SENSITIVITY * steeringFactor;
+			transform.rotation.y -= mouseSteeringAmount;
 		}
-
-		// (No clamp => full freedom to loop or look up/down as in No Man's Sky)
-
-		// 2) Compute local directions
+		
+		// Keep vehicle level with the ground (minimal pitch and roll)
+		transform.rotation.x *= 0.9; // Gradually level pitch
+		transform.rotation.z *= 0.9; // Gradually level roll
+		
+		// 2. Compute forward direction
 		const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(transform.rotation);
-		const strafeDir = new THREE.Vector3(1, 0, 0).applyEuler(transform.rotation);
-
-		// 3) Determine thrust force
-		const boostFactor = input.boost ? 2 : 1;
-		const thrustForce = thrust * delta * 100 * boostFactor;
-
-		// Forward/back
-		velocity.addScaledVector(forwardDir, input.forward * thrustForce);
-
-		// Strafe left/right
-		velocity.addScaledVector(strafeDir, input.strafe * thrustForce);
-
-		// 4) Brake
+		
+		// 3. Handle forward and reverse movement
+		if (input.forward > 0) {
+			// Forward thrust
+			const throttleForce = forwardDir.clone().multiplyScalar(input.forward * thrust * delta);
+			force.add(throttleForce);
+		}
+		
+		// 4. Handle braking and reverse
 		if (input.brake) {
-			// Slight damping each frame if S is pressed
-			velocity.multiplyScalar(0.98);
+			if (speed > REVERSE_SPEED_THRESHOLD) {
+				// Apply braking when moving
+				const brakeForce = velocity.clone().normalize().negate().multiplyScalar(thrust * 1.5 * delta);
+				force.add(brakeForce);
+			} else {
+				// Apply reverse thrust when nearly stopped
+				const reverseForce = forwardDir.clone().multiplyScalar(-thrust * delta);
+				force.add(reverseForce);
+			}
+		}
+		
+		// 5. Apply ground contact and friction
+		// Check if on ground (simple implementation)
+		if (transform.position.y <= GROUND_LEVEL) {
+			// Keep vehicle at ground level
+			transform.position.y = GROUND_LEVEL;
+			
+			// Apply ground friction (only to XZ plane)
+			const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
+			const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION);
+			velocity.add(frictionForce);
+			
+			// Apply additional turning force for sharper cornering
+			if (input.strafe !== 0 && speed > 0.5) {
+				// Calculate steering force perpendicular to direction of travel
+				const steeringDir = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x);
+				const turnForce = steeringDir.clone().multiplyScalar(input.strafe * 0.5 * delta * speed);
+				velocity.add(turnForce);
+			}
+		} else {
+			// Apply gravity when in air
+			velocity.add(GRAVITY.clone().multiplyScalar(delta));
+		}
+		
+		// 6. Apply boost
+		if (input.boost) {
+			const boostForce = forwardDir.clone().multiplyScalar(thrust * 2 * delta);
+			force.add(boostForce);
 		}
 	});
 }

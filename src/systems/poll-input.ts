@@ -69,8 +69,10 @@ window.addEventListener('keydown', (e) => {
 			break;
 	}
 
-	// Request pointer lock on any key press if not already locked
-	requestPointerLock();
+	// Only request pointer lock on game-relevant keys
+	if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'q', 'r'].includes(e.key.toLowerCase())) {
+		requestPointerLock();
+	}
 });
 
 // Listen for mouse clicks to request pointer lock
@@ -90,11 +92,11 @@ window.addEventListener('keyup', (e) => {
 			break;
 		case 'a':
 		case 'arrowleft':
-			state.strafe = 0;
+			if (state.strafe === -1) state.strafe = 0; // Only reset if left key was pressed
 			break;
 		case 'd':
 		case 'arrowright':
-			state.strafe = 0;
+			if (state.strafe === 1) state.strafe = 0; // Only reset if right key was pressed
 			break;
 		case ' ':
 			state.boost = false;
