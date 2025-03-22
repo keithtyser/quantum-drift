@@ -1,7 +1,7 @@
 import { useQuery, useQueryFirst } from 'koota/react';
 import { Entity } from 'koota';
 import { IsTrack, Transform, TrackSegment } from '../traits';
-import { Grid, Line, Box, Text } from '@react-three/drei';
+import { Grid, Line, Box, Text, useHelper } from '@react-three/drei';
 import { useRef, MutableRefObject, useCallback, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { Group } from 'three';
@@ -230,7 +230,7 @@ function DebugBoundingBox({ min, max }: { min: THREE.Vector3, max: THREE.Vector3
   );
 }
 
-// Render a single track segment - simplified for debugging
+// Simplified track segment view for debugging
 function TrackSegmentView({ entity }: { entity: Entity }) {
   const segment = entity.get(TrackSegment);
   if (!segment) {
@@ -245,32 +245,53 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
     return null;
   }
   
-  console.log(`Rendering segment ${segment.index} with ${controlPoints.length} control points`);
+  // Create a distinctive color based on segment index for debugging
+  const getSegmentColor = (index: number, type: string) => {
+    // Base color determined by segment type
+    let color;
+    switch (type) {
+      case 'curve-left': 
+      case 'curve-right': return '#4466AA';
+      case 'hill-up': return '#44AA66';
+      case 'hill-down': return '#AA4466';
+      case 'chicane': 
+      case 's-curve': return '#AA44AA';
+      default: return '#888888'; // straight
+    }
+  };
   
-  // Create a simple box for each segment that follows the first control point
+  // Get segment start position for placement
+  const startPos = segment.startPosition || controlPoints[0];
+  
+  // Calculate segment length either from property or from control points
+  const segmentLength = segment.length || 
+    (controlPoints.length > 1 ? controlPoints[0].distanceTo(controlPoints[controlPoints.length-1]) : 50);
+  
+  // Create a simple box representing the track segment
   return (
-    <group position={controlPoints[0]}>
-      <mesh position={[0, -0.05, -segment.length/2]}>
-        <boxGeometry args={[segment.width, 0.1, segment.length]} />
+    <group>
+      {/* Show segment as a colored box */}
+      <mesh position={[startPos.x, startPos.y, startPos.z - segmentLength/2]}>
+        <boxGeometry args={[segment.width, 0.5, segmentLength]} />
         <meshStandardMaterial 
-          color={segment.type === 'straight' ? '#444444' : '#446688'} 
+          color={getSegmentColor(segment.index, segment.type)} 
           roughness={0.8}
         />
       </mesh>
       
-      {/* Simple barriers on left and right edges */}
-      <group position={[segment.width/2, 0.5, -segment.length/2]}>
-        <boxGeometry args={[0.5, 1, segment.length]} />
-        <meshStandardMaterial color="#ff4444" />
-      </group>
+      {/* Add barriers on both sides */}
+      <mesh position={[startPos.x + segment.width/2, startPos.y + 1, startPos.z - segmentLength/2]}>
+        <boxGeometry args={[1, 2, segmentLength]} />
+        <meshStandardMaterial color="#AA2222" />
+      </mesh>
       
-      <group position={[-segment.width/2, 0.5, -segment.length/2]}>
-        <boxGeometry args={[0.5, 1, segment.length]} />
-        <meshStandardMaterial color="#4444ff" />
-      </group>
+      <mesh position={[startPos.x - segment.width/2, startPos.y + 1, startPos.z - segmentLength/2]}>
+        <boxGeometry args={[1, 2, segmentLength]} />
+        <meshStandardMaterial color="#2222AA" />
+      </mesh>
       
-      {/* Debug ID display */}
-      <group position={[0, 3, -segment.length/2]}>
+      {/* Add segment number display */}
+      <group position={[startPos.x, startPos.y + 4, startPos.z - segmentLength/2]}>
         <Text
           color="#ffffff"
           fontSize={2}
@@ -279,9 +300,17 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
           outlineWidth={0.1}
           outlineColor="#000000"
         >
-          {`Segment ${segment.index}`}
+          {`#${segment.index}: ${segment.type}`}
         </Text>
       </group>
+      
+      {/* Visualize the control points as small spheres */}
+      {controlPoints.map((point, i) => (
+        <mesh key={`cp-${i}`} position={point}>
+          <sphereGeometry args={[0.5, 8, 8]} />
+          <meshStandardMaterial color="#FFFF00" />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -371,21 +400,24 @@ export function TrackRenderer() {
         position={[0, -0.5, 0]}
       />
       
-      {/* Simplify track rendering for now */}
-      {segments.length > 0 && (
-        <mesh position={[0, 0, -25]}>
-          <boxGeometry args={[20, 0.1, 50]} />
-          <meshStandardMaterial color="#444444" />
-        </mesh>
-      )}
-      
-      {/* Only render TrackView for the main track entity if it exists */}
-      {track && !track.has(TrackSegment) && <TrackView entity={track} />}
-      
-      {/* Render first few segments only for testing */}
-      {segments.slice(0, 3).map(entity => (
+      {/* Render all track segments */}
+      {segments.map(entity => (
         <TrackSegmentView key={entity.id.toString()} entity={entity} />
       ))}
+      
+      {/* Show axis helper at each segment start */}
+      {segments.slice(0, 5).map(entity => {
+        const segment = entity.get(TrackSegment);
+        if (!segment || !segment.startPosition) return null;
+        
+        return (
+          <axesHelper 
+            key={`axis-${entity.id.toString()}`} 
+            position={segment.startPosition} 
+            args={[5]} 
+          />
+        );
+      })}
     </>
   );
 } 

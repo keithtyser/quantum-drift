@@ -1,46 +1,51 @@
-import { useEffect } from 'react';
-import { useWorld, useActions } from 'koota/react';
+import { useEffect, useState } from 'react';
+import { useWorld } from 'koota/react';
 import { actions } from './actions';
-import { DebugControls } from './components/debug-controls';
+import { Vector3 } from 'three';
 
 /**
  * Initializes the world and spawns necessary entities
  */
-export function Startup({ initialCameraPosition = [0, 5, 10] }: { initialCameraPosition?: [number, number, number] }) {
+export function Startup({ initialCameraPosition }: { initialCameraPosition: [number, number, number] }) {
 	const world = useWorld();
-	const { spawnCamera, spawnPlayer, spawnTrack } = useActions(actions);
+	const [initialized, setInitialized] = useState(false);
 
 	useEffect(() => {
-		// Initialize world with required entities
-		if (world) {
-			console.log('Starting up game...');
-
-			// Spawn entities
-			const trackEntity = spawnTrack();
-			const playerEntity = spawnPlayer();
-			spawnCamera(initialCameraPosition);
+		if (world && !initialized) {
+			console.log("==========================================");
+			console.log("              GAME STARTUP                ");
+			console.log("==========================================");
 			
-			console.log('Entities spawned:', {
-				track: trackEntity?.id,
-				player: playerEntity?.id
-			});
-
-			// Reset player when double tap 'r' key
-			let lastRKeyTime = 0;
-			document.addEventListener('keydown', (e) => {
-				if (e.key === 'r') {
-					const now = Date.now();
-					if (now - lastRKeyTime < 500) { // 500ms window for double tap
-						console.log('Double-tap R detected - reset player would go here');
-						// This would need a resetPlayer action to be implemented
-					}
-					lastRKeyTime = now;
-				}
-			});
+			try {
+				// Create the actions object with the world
+				const gameActions = actions(world);
+				
+				// Create procedural track
+				console.log("Spawning procedural track");
+				const trackEntity = gameActions.spawnTrack();
+				console.log(`Track entity spawned: ${trackEntity?.id}`);
+				
+				// Camera position debugging
+				console.log(`Spawning camera at position: (${initialCameraPosition[0]}, ${initialCameraPosition[1]}, ${initialCameraPosition[2]})`);
+				
+				// Spawn camera using the actions API
+				const cameraEntity = gameActions.spawnCamera(initialCameraPosition);
+				console.log(`Camera spawned: ${cameraEntity?.id}`);
+				
+				// Spawn player using the actions API
+				console.log("Spawning player entity");
+				const playerEntity = gameActions.spawnPlayer();
+				console.log(`Player spawned: ${playerEntity?.id}`);
+				
+				console.log("Game initialization complete");
+				console.log("==========================================");
+				
+				setInitialized(true);
+			} catch (error) {
+				console.error("Error during game initialization:", error);
+			}
 		}
-	}, [world, spawnCamera, spawnPlayer, spawnTrack, initialCameraPosition]);
+	}, [world, initialized, initialCameraPosition]);
 
-	// We've moved the game loop logic to frameloop.ts, so we don't need it here
-
-	return <DebugControls />;
+	return null;
 }
