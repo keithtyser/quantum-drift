@@ -27,8 +27,20 @@ const CAMERA_CONFIG = {
 		fovIncrease: 10,
 		// Maximum speed to use for calculations
 		maxSpeedReference: 30
+	},
+	// Reverse-specific stabilization
+	reverseStabilization: {
+		// Higher values create more stable but less responsive camera
+		positionBufferStrength: 0.92,
+		// How strongly to lock the camera angle during reverse
+		rotationStabilization: 0.7
 	}
 };
+
+// Position buffer for camera stabilization (persists between frames)
+let lastStablePosition = new THREE.Vector3();
+let lastStableRotation = new THREE.Euler();
+let isStabilizing = false;
 
 export const cameraFollowPlayer = (world: World) => {
 	const player = world.queryFirst(IsPlayer, Transform, Movement);
@@ -54,14 +66,27 @@ export const cameraFollowPlayer = (world: World) => {
 	const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
 	const velocityNormalized = speed > 0.01 ? playerMovement.velocity.clone().normalize() : new THREE.Vector3();
 	const reverseDotProduct = velocityNormalized.dot(forwardDir);
+	
+	// Define high-speed reverse conditions more precisely
 	const movingBackward = reverseDotProduct < -0.5 && speed > 1;
+	const highSpeedReverse = movingBackward && speed > 15;
+
+	// Update stabilization state based on reverse speed
+	if (highSpeedReverse && !isStabilizing) {
+		// Start stabilization - initialize with current values
+		lastStablePosition.copy(playerTransform.position);
+		lastStableRotation.copy(playerTransform.rotation);
+		isStabilizing = true;
+	} else if (!highSpeedReverse && isStabilizing) {
+		// Exit stabilization mode
+		isStabilizing = false;
+	}
 
 	// Adjust offset for reversed movement to stabilize camera
 	if (movingBackward) {
-		// When reversing, move camera slightly higher and further back for stability
-		// This prevents the camera from getting too close to the vehicle during high-speed reversing
-		dynamicOffset.y += 0.5; // Raise camera a bit higher when reversing
-		dynamicOffset.z += 2.0; // Pull camera back more when reversing
+		// When reversing, move camera higher and further back for better visibility
+		dynamicOffset.y += 0.8; // Increased from 0.5 for better visibility
+		dynamicOffset.z += 3.0; // Increased from 2.0 for more stable view
 	}
 
 	const offsetRotated = dynamicOffset.clone().applyEuler(
@@ -73,33 +98,59 @@ export const cameraFollowPlayer = (world: World) => {
 	);
 
 	world.query(IsCamera, Transform).updateEach(([cameraTransform]) => {
-		// Calculate target position
-		const targetPosition = new THREE.Vector3().copy(playerTransform.position).add(offsetRotated);
+		// Calculate target position (standard approach)
+		const standardTargetPosition = new THREE.Vector3().copy(playerTransform.position).add(offsetRotated);
+		
+		// Apply stabilization for high-speed reverse
+		let targetPosition;
+		
+		if (isStabilizing) {
+			// Update the stable position with weighted averaging
+			// This creates a lag buffer that smooths out rapid position changes
+			const bufferStrength = CAMERA_CONFIG.reverseStabilization.positionBufferStrength;
+			
+			// Smooth the player position first (not the final camera position)
+			lastStablePosition.lerp(playerTransform.position, 1 - bufferStrength);
+			
+			// Calculate target based on the smoothed position
+			targetPosition = new THREE.Vector3().copy(lastStablePosition).add(offsetRotated);
+		} else {
+			// Use standard position calculation for normal driving
+			targetPosition = standardTargetPosition;
+		}
 
-		// Calculate look-at point (ahead of the player)
-		const playerForwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
+		// Calculate look-at point
 		const lookAtPoint = new THREE.Vector3()
 			.copy(playerTransform.position)
-			.add(playerForwardDir.clone().multiplyScalar(CAMERA_CONFIG.lookAheadDistance));
+			.add(forwardDir.clone().multiplyScalar(CAMERA_CONFIG.lookAheadDistance));
 
-		// Increase damping during high-speed reverse to reduce camera shake
-		// Higher damping = more responsive camera that follows more directly
-		// For very high reverse speeds, use an even higher damping value for stability
-		const effectiveDamping = movingBackward 
-			? Math.min(0.25, CAMERA_CONFIG.positionDamping * (1 + Math.abs(reverseDotProduct) * speed * 0.01))
-			: CAMERA_CONFIG.positionDamping;
+		// Calculate effective damping based on movement state
+		const effectiveDamping = highSpeedReverse 
+			? 0.3 // Use a fixed high damping value during high-speed reverse
+			: movingBackward
+				? Math.min(0.25, CAMERA_CONFIG.positionDamping * (1 + Math.abs(reverseDotProduct) * speed * 0.01))
+				: CAMERA_CONFIG.positionDamping;
 			
-		// Smoothly move camera position with calculated damping value
+		// Apply position damping
 		cameraTransform.position.lerp(targetPosition, effectiveDamping);
 
-		// Calculate and apply camera rotation
+		// Calculate and apply camera rotation (standard approach)
 		const targetRotation = new THREE.Quaternion().setFromRotationMatrix(
 			new THREE.Matrix4().lookAt(cameraTransform.position, lookAtPoint, new THREE.Vector3(0, 1, 0))
 		);
 
-		// Apply smooth rotation using quaternion slerp
+		// Apply rotation with stabilization during reverse
 		const currentQuat = new THREE.Quaternion().setFromEuler(cameraTransform.rotation);
-		currentQuat.slerp(targetRotation, CAMERA_CONFIG.rotationDamping);
+		
+		if (highSpeedReverse) {
+			// During high-speed reverse, use stronger stabilization for rotation
+			// This prevents the camera from rotating too much during reverse
+			currentQuat.slerp(targetRotation, CAMERA_CONFIG.rotationDamping * 0.6);
+		} else {
+			// Normal rotation damping
+			currentQuat.slerp(targetRotation, CAMERA_CONFIG.rotationDamping);
+		}
+		
 		cameraTransform.rotation.setFromQuaternion(currentQuat);
 
 		// Ensure camera stays within distance limits
