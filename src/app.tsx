@@ -19,6 +19,10 @@ export function App() {
 				shadows={true} 
 				gl={{ alpha: false, antialias: true }}
 				camera={{ position: [0, 10, 20], fov: 60 }}
+				onCreated={({ camera }) => {
+					// Make camera available for frustum culling
+					window.currentCamera = camera;
+				}}
 			>
 				{/* Enable OrbitControls for debugging */}
 				<OrbitControls 

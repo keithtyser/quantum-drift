@@ -13,7 +13,11 @@ import { TrackView } from './TrackView';
  * @param cameraPosition Camera position to measure from
  * @returns Filtered segments
  */
-function distanceCulling(segments: Entity[], maxDistance: number = 200, cameraPosition = [0, 0, 0]): Entity[] {
+function distanceCulling(
+  segments: Entity[], 
+  maxDistance = 200, 
+  cameraPosition = [0, 0, 0]
+): Entity[] {
   if (!segments || segments.length === 0) return [];
   
   const cameraPos = { x: cameraPosition[0], y: cameraPosition[1], z: cameraPosition[2] };
