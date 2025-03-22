@@ -2,7 +2,7 @@ import { useQuery, useQueryFirst } from 'koota/react';
 import { Entity } from 'koota';
 import { IsTrack, Transform, TrackSegment } from '../traits';
 import { Grid, Line } from '@react-three/drei';
-import { useRef, MutableRefObject, useCallback, useMemo } from 'react';
+import { useRef, MutableRefObject, useCallback, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { Group } from 'three';
 
@@ -46,6 +46,19 @@ function createTrackEdges(segment: any): [THREE.Vector3[], THREE.Vector3[]] {
   return [leftEdge, rightEdge];
 }
 
+// Debug component to visualize track segment bounding box
+function DebugBoundingBox({ min, max }: { min: THREE.Vector3, max: THREE.Vector3 }) {
+  const size = new THREE.Vector3().subVectors(max, min);
+  const center = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
+  
+  return (
+    <mesh position={center}>
+      <boxGeometry args={[size.x, size.y, size.z]} />
+      <meshBasicMaterial color="red" wireframe={true} />
+    </mesh>
+  );
+}
+
 // Render a single track segment
 function TrackSegmentView({ entity }: { entity: Entity }) {
   const segment = entity.get(TrackSegment);
@@ -53,24 +66,40 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
   
   // Use control points to create track geometry
   const controlPoints = segment.controlPoints;
+  if (!controlPoints || controlPoints.length < 2) {
+    console.error("TrackSegment has insufficient control points", segment);
+    return null;
+  }
   
   // Create the edge points
   const [leftEdge, rightEdge] = useMemo(() => 
     createTrackEdges(segment), [segment.controlPoints, segment.width]
   );
   
-  // Create track surface points
-  const surfacePoints = useMemo(() => {
-    // Connect left and right edges to form the track surface
-    const points: THREE.Vector3[] = [];
-    
-    // For each control point, add left and right edge points
-    for (let i = 0; i < leftEdge.length; i++) {
-      points.push(leftEdge[i]);
-      points.push(rightEdge[i]);
-    }
-    
-    return points;
+  if (leftEdge.length === 0 || rightEdge.length === 0) {
+    console.error("Failed to create track edges", segment);
+    return null;
+  }
+  
+  // Debug bounding box
+  const boundingBoxMin = useMemo(() => {
+    const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+    [...leftEdge, ...rightEdge].forEach(p => {
+      min.x = Math.min(min.x, p.x);
+      min.y = Math.min(min.y, p.y);
+      min.z = Math.min(min.z, p.z);
+    });
+    return min;
+  }, [leftEdge, rightEdge]);
+  
+  const boundingBoxMax = useMemo(() => {
+    const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+    [...leftEdge, ...rightEdge].forEach(p => {
+      max.x = Math.max(max.x, p.x);
+      max.y = Math.max(max.y, p.y);
+      max.z = Math.max(max.z, p.z);
+    });
+    return max;
   }, [leftEdge, rightEdge]);
   
   // Track color based on segment type
@@ -87,6 +116,42 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
         return '#444444';
     }
   };
+  
+  // Create a simpler track visualization using a plane mesh for each segment
+  const segmentMesh = useMemo(() => {
+    if (leftEdge.length < 2 || rightEdge.length < 2) return null;
+    
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    
+    // Create vertices by combining left and right edges
+    for (let i = 0; i < leftEdge.length; i++) {
+      // Left edge vertex
+      vertices.push(leftEdge[i].x, leftEdge[i].y, leftEdge[i].z);
+      // Right edge vertex
+      vertices.push(rightEdge[i].x, rightEdge[i].y, rightEdge[i].z);
+    }
+    
+    // Create triangles (two triangles per quad)
+    for (let i = 0; i < leftEdge.length - 1; i++) {
+      const i1 = i * 2;
+      const i2 = i1 + 1;
+      const i3 = i1 + 2;
+      const i4 = i1 + 3;
+      
+      // First triangle
+      indices.push(i1, i2, i3);
+      // Second triangle
+      indices.push(i2, i4, i3);
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    
+    return geometry;
+  }, [leftEdge, rightEdge]);
   
   return (
     <group position={[0, 0, 0]}>
@@ -116,37 +181,19 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
       />
       
       {/* Track surface */}
-      <mesh>
-        <meshStandardMaterial color={getTrackColor()} roughness={0.8} metalness={0.2} />
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={surfacePoints.length}
-            array={new Float32Array(surfacePoints.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
+      {segmentMesh && (
+        <mesh geometry={segmentMesh}>
+          <meshStandardMaterial 
+            color={getTrackColor()} 
+            roughness={0.8} 
+            metalness={0.2}
+            side={THREE.DoubleSide}
           />
-          <bufferAttribute
-            attach="index"
-            count={(leftEdge.length - 1) * 6}
-            array={(() => {
-              const indices = [];
-              // Create triangles between left and right edges
-              for (let i = 0; i < leftEdge.length - 1; i++) {
-                const i1 = i * 2;
-                const i2 = i1 + 1;
-                const i3 = i1 + 2;
-                const i4 = i1 + 3;
-                // Triangle 1
-                indices.push(i1, i2, i3);
-                // Triangle 2
-                indices.push(i2, i4, i3);
-              }
-              return new Uint16Array(indices);
-            })()}
-            itemSize={1}
-          />
-        </bufferGeometry>
-      </mesh>
+        </mesh>
+      )}
+      
+      {/* Debug bounding box */}
+      {/* <DebugBoundingBox min={boundingBoxMin} max={boundingBoxMax} /> */}
     </group>
   );
 }
@@ -198,7 +245,20 @@ export function TrackRenderer() {
   const track = useQueryFirst(IsTrack, Transform);
   
   // Get all track segment entities
-  const segments = useQuery(IsTrack, TrackSegment, Transform);
+  const segments = useQuery(IsTrack, TrackSegment);
+  
+  // Log segment count for debugging
+  useEffect(() => {
+    console.log(`TrackRenderer: Found ${segments.length} track segments`);
+    if (segments.length > 0) {
+      const firstSegment = segments[0].get(TrackSegment);
+      console.log("First segment:", { 
+        index: firstSegment?.index,
+        type: firstSegment?.type,
+        controlPoints: firstSegment?.controlPoints?.length
+      });
+    }
+  }, [segments.length]);
   
   return (
     <>

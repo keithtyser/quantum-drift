@@ -5,14 +5,14 @@ import { noise } from './perlin';
 export const TRACK_CONFIG = {
   segmentLength: 50, // Length of a single track segment
   trackWidth: 20, // Width of the track
-  minCurvature: -0.3, // Minimum curvature value (left turn)
-  maxCurvature: 0.3, // Maximum curvature value (right turn)
-  minElevation: -2, // Minimum elevation change per segment
-  maxElevation: 4, // Maximum elevation change per segment
-  curveFrequency: 0.2, // How often curves appear (0-1)
-  elevationFrequency: 0.3, // How often elevation changes appear (0-1)
-  renderDistance: 5, // Number of segments to render ahead and behind
-  seed: Math.random() * 10000, // Random seed for noise generation
+  minCurvature: -0.2, // Reduced curvature for more stable tracks
+  maxCurvature: 0.2, // Reduced curvature for more stable tracks
+  minElevation: -1, // Reduced elevation change
+  maxElevation: 2, // Reduced elevation change
+  curveFrequency: 0.1, // Reduced curve frequency for more straight segments
+  elevationFrequency: 0.1, // Reduced elevation frequency
+  renderDistance: 10, // Increased render distance for better visibility
+  seed: 12345, // Fixed seed for consistent generation during debugging
 };
 
 // Segment types
@@ -40,11 +40,26 @@ export interface SegmentParams {
  * @returns Parameters for the new segment
  */
 export function generateNextSegment(prevSegment: SegmentParams | null, index: number): SegmentParams {
+  console.log(`Generating segment ${index}`);
+  
   // If this is the first segment, create a straight segment at the origin
   if (!prevSegment) {
     const startPos = new THREE.Vector3(0, 0, 0);
     const endPos = new THREE.Vector3(0, 0, -TRACK_CONFIG.segmentLength);
     const direction = new THREE.Vector3(0, 0, -1);
+    
+    // Create control points for the straight segment
+    const controlPoints: THREE.Vector3[] = [];
+    const steps = 10;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const point = new THREE.Vector3(
+        0,
+        0,
+        -t * TRACK_CONFIG.segmentLength
+      );
+      controlPoints.push(point);
+    }
     
     return {
       index,
@@ -57,64 +72,63 @@ export function generateNextSegment(prevSegment: SegmentParams | null, index: nu
       endPosition: endPos,
       startDirection: direction,
       endDirection: direction,
-      controlPoints: [],
+      controlPoints,
     };
   }
 
-  // Use Perlin noise to decide segment type for more natural transitions
-  const noiseSample = noise(
-    index * 0.1 + TRACK_CONFIG.seed,
-    0.5,
-    0.5
-  );
+  // Use Perlin noise for consistent, non-random generation
+  const noiseSeed = index * 0.3;
+  const noiseSample = noise(noiseSeed, 0, TRACK_CONFIG.seed * 0.01);
   
-  // Determine segment type based on noise
+  // For safety, first 5 segments should always be straight
   let type: SegmentType = 'straight';
   let curvature = 0;
   let elevation = 0;
   
-  // Decide if this segment should curve
-  if (Math.abs(noiseSample) > 1 - TRACK_CONFIG.curveFrequency) {
-    // Curve direction based on noise value
-    if (noiseSample > 0) {
-      type = 'curve-right';
-      curvature = THREE.MathUtils.lerp(
-        0.05, 
-        TRACK_CONFIG.maxCurvature, 
-        Math.abs(noiseSample)
-      );
-    } else {
-      type = 'curve-left';
-      curvature = THREE.MathUtils.lerp(
-        -0.05, 
-        TRACK_CONFIG.minCurvature, 
-        Math.abs(noiseSample)
-      );
+  // After segment 5, add some variation
+  if (index > 5) {
+    // Decide if this segment should curve
+    if (Math.abs(noiseSample) > 1 - TRACK_CONFIG.curveFrequency) {
+      // Curve direction based on noise value
+      if (noiseSample > 0) {
+        type = 'curve-right';
+        curvature = THREE.MathUtils.lerp(
+          0.05, 
+          TRACK_CONFIG.maxCurvature, 
+          Math.abs(noiseSample)
+        );
+      } else {
+        type = 'curve-left';
+        curvature = THREE.MathUtils.lerp(
+          -0.05, 
+          TRACK_CONFIG.minCurvature, 
+          Math.abs(noiseSample)
+        );
+      }
     }
-  }
-  
-  // Decide if this segment should change elevation
-  const elevationNoise = noise(
-    index * 0.2 + TRACK_CONFIG.seed + 100,
-    0.5,
-    0.5
-  );
-  
-  if (Math.abs(elevationNoise) > 1 - TRACK_CONFIG.elevationFrequency) {
-    if (elevationNoise > 0) {
-      type = type === 'straight' ? 'hill-up' : type;
-      elevation = THREE.MathUtils.lerp(
-        0.5, 
-        TRACK_CONFIG.maxElevation,
-        Math.abs(elevationNoise)
-      );
-    } else {
-      type = type === 'straight' ? 'hill-down' : type;
-      elevation = THREE.MathUtils.lerp(
-        -0.5, 
-        TRACK_CONFIG.minElevation,
-        Math.abs(elevationNoise)
-      );
+    
+    // Decide if this segment should change elevation
+    // Use a different noise parameter for elevation
+    const elevationNoise = noise(noiseSeed + 100, 0, TRACK_CONFIG.seed * 0.01);
+    
+    if (Math.abs(elevationNoise) > 1 - TRACK_CONFIG.elevationFrequency) {
+      if (elevationNoise > 0) {
+        // Only change type if not already curved
+        type = type === 'straight' ? 'hill-up' : type;
+        elevation = THREE.MathUtils.lerp(
+          0.5, 
+          TRACK_CONFIG.maxElevation,
+          Math.abs(elevationNoise)
+        );
+      } else {
+        // Only change type if not already curved
+        type = type === 'straight' ? 'hill-down' : type;
+        elevation = THREE.MathUtils.lerp(
+          -0.5, 
+          TRACK_CONFIG.minElevation,
+          Math.abs(elevationNoise)
+        );
+      }
     }
   }
   
@@ -129,7 +143,7 @@ export function generateNextSegment(prevSegment: SegmentParams | null, index: nu
   
   if (type === 'curve-left' || type === 'curve-right') {
     // Use a simple circular arc for curved segments
-    const radius = TRACK_CONFIG.segmentLength / Math.abs(curvature);
+    const radius = TRACK_CONFIG.segmentLength / Math.abs(curvature || 0.001);
     
     // Calculate center of the turning circle
     const normal = new THREE.Vector3(-startDir.z, 0, startDir.x).normalize();
@@ -170,15 +184,21 @@ export function generateNextSegment(prevSegment: SegmentParams | null, index: nu
     }
   } else {
     // For straight segments, hill-up, or hill-down
-    endPos = startPos.clone().add(startDir.clone().multiplyScalar(TRACK_CONFIG.segmentLength));
     endDir = startDir.clone();
+    
+    // Calculate end position
+    endPos = startPos.clone().add(startDir.clone().multiplyScalar(TRACK_CONFIG.segmentLength));
     
     // Generate control points for visualization
     controlPoints = [];
     const steps = 10;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      const point = startPos.clone().add(startDir.clone().multiplyScalar(t * TRACK_CONFIG.segmentLength));
+      const point = new THREE.Vector3().lerpVectors(
+        startPos, 
+        endPos, 
+        t
+      );
       
       // Add elevation change gradually
       if (elevation !== 0) {
@@ -189,12 +209,26 @@ export function generateNextSegment(prevSegment: SegmentParams | null, index: nu
       
       controlPoints.push(point);
     }
+    
+    // Update end position with final elevation
+    if (elevation !== 0) {
+      endPos.y += elevation;
+    }
   }
   
-  // Apply final elevation to end position
-  if (elevation !== 0) {
-    endPos.y += elevation;
+  // Safety check: ensure we have enough control points
+  if (controlPoints.length < 2) {
+    console.warn(`Segment ${index} has less than 2 control points, adding fallback points`);
+    
+    // Add fallback control points
+    controlPoints = [
+      startPos.clone(),
+      endPos.clone(),
+    ];
   }
+  
+  // Log the generated segment for debugging
+  console.log(`Segment ${index}: ${type}, curvature: ${curvature.toFixed(2)}, elevation: ${elevation.toFixed(2)}`);
   
   return {
     index,
