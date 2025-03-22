@@ -1,45 +1,30 @@
 /**
- * A simple Perlin noise implementation for procedural generation
- * Based on the improved noise algorithm by Ken Perlin
+ * Perlin noise implementation for procedural generation
+ * Adapted from improved noise algorithm by Ken Perlin
  */
 
 // Permutation table
-const permutation = [
-  151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140,
-  36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120, 234,
-  75, 0, 26, 197, 62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33, 88, 237,
-  149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175, 74, 165, 71, 134, 139, 48,
-  27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230, 220, 105,
-  92, 41, 55, 46, 245, 40, 244, 102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73,
-  209, 76, 132, 187, 208, 89, 18, 169, 200, 196, 135, 130, 116, 188, 159, 86,
-  164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226, 250, 124, 123, 5, 202, 38,
-  147, 118, 126, 255, 82, 85, 212, 207, 206, 59, 227, 47, 16, 58, 17, 182, 189,
-  28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221, 153, 101,
-  155, 167, 43, 172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232,
-  178, 185, 112, 104, 218, 246, 97, 228, 251, 34, 242, 193, 238, 210, 144, 12,
-  191, 179, 162, 241, 81, 51, 145, 235, 249, 14, 239, 107, 49, 192, 214, 31,
-  181, 199, 106, 157, 184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254,
-  138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215,
-  61, 156, 180,
-];
+const permutation: number[] = Array.from({ length: 512 }, (_, i) => {
+  return i < 256 ? Math.floor(Math.random() * 256) : i - 256;
+});
 
-// Double the permutation table
-const p: number[] = Array(512);
-for (let i = 0; i < 256; i++) {
-  p[i] = p[i + 256] = permutation[i];
-}
-
-// Fade function as defined by Ken Perlin
-function fade(t: number): number {
-  return t * t * t * (t * (t * 6 - 15) + 10);
-}
-
-// Linear interpolation
+/**
+ * Linear interpolation
+ */
 function lerp(t: number, a: number, b: number): number {
   return a + t * (b - a);
 }
 
-// Gradient function
+/**
+ * Smooth interpolation
+ */
+function fade(t: number): number {
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/**
+ * Gradient function for Perlin noise
+ */
 function grad(hash: number, x: number, y: number, z: number): number {
   const h = hash & 15;
   const u = h < 8 ? x : y;
@@ -48,52 +33,122 @@ function grad(hash: number, x: number, y: number, z: number): number {
 }
 
 /**
- * 3D Perlin noise function
- * @param x X coordinate
- * @param y Y coordinate
- * @param z Z coordinate
+ * Generate 3D Perlin noise
+ * @param x - X coordinate
+ * @param y - Y coordinate (optional, defaults to 0)
+ * @param z - Z coordinate or seed (optional, defaults to 0)
  * @returns Noise value between -1 and 1
  */
-export function noise(x: number, y: number, z: number): number {
-  // Find unit grid cell containing point
+export function noise(x: number, y: number = 0, z: number = 0): number {
+  // Scale inputs to make result more random-looking
+  x = x || 0;
+  y = y || 0;
+  z = z || 0;
+  
+  // Find unit cube that contains point
   const X = Math.floor(x) & 255;
   const Y = Math.floor(y) & 255;
   const Z = Math.floor(z) & 255;
-
-  // Get relative coordinates of point within cell
+  
+  // Find relative x, y, z of point in cube
   x -= Math.floor(x);
   y -= Math.floor(y);
   z -= Math.floor(z);
-
-  // Compute fade curves for each coordinate
+  
+  // Compute fade curves for each of x, y, z
   const u = fade(x);
   const v = fade(y);
   const w = fade(z);
-
+  
   // Hash coordinates of the 8 cube corners
-  const A = p[X] + Y;
-  const AA = p[A] + Z;
-  const AB = p[A + 1] + Z;
-  const B = p[X + 1] + Y;
-  const BA = p[B] + Z;
-  const BB = p[B + 1] + Z;
-
+  const A = permutation[X] + Y;
+  const AA = permutation[A] + Z;
+  const AB = permutation[A + 1] + Z;
+  const B = permutation[X + 1] + Y;
+  const BA = permutation[B] + Z;
+  const BB = permutation[B + 1] + Z;
+  
   // Add blended results from 8 corners of cube
   return lerp(
     w,
     lerp(
       v,
-      lerp(u, grad(p[AA], x, y, z), grad(p[BA], x - 1, y, z)),
-      lerp(u, grad(p[AB], x, y - 1, z), grad(p[BB], x - 1, y - 1, z))
+      lerp(
+        u,
+        grad(permutation[AA], x, y, z),
+        grad(permutation[BA], x - 1, y, z)
+      ),
+      lerp(
+        u,
+        grad(permutation[AB], x, y - 1, z),
+        grad(permutation[BB], x - 1, y - 1, z)
+      )
     ),
     lerp(
       v,
-      lerp(u, grad(p[AA + 1], x, y, z - 1), grad(p[BA + 1], x - 1, y, z - 1)),
       lerp(
         u,
-        grad(p[AB + 1], x, y - 1, z - 1),
-        grad(p[BB + 1], x - 1, y - 1, z - 1)
+        grad(permutation[AA + 1], x, y, z - 1),
+        grad(permutation[BA + 1], x - 1, y, z - 1)
+      ),
+      lerp(
+        u,
+        grad(permutation[AB + 1], x, y - 1, z - 1),
+        grad(permutation[BB + 1], x - 1, y - 1, z - 1)
       )
     )
   );
+}
+
+/**
+ * Generate 2D Perlin noise
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ * @param seed - Optional seed value
+ * @returns Noise value between -1 and 1
+ */
+export function noise2d(x: number, y: number, seed: number = 0): number {
+  return noise(x, y, seed);
+}
+
+/**
+ * Generate 1D Perlin noise
+ * @param x - X coordinate
+ * @param seed - Optional seed value
+ * @returns Noise value between -1 and 1
+ */
+export function noise1d(x: number, seed: number = 0): number {
+  return noise(x, 0, seed);
+}
+
+/**
+ * Generate octaved Perlin noise with multiple frequencies
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ * @param octaves - Number of octaves
+ * @param persistence - How much each octave contributes
+ * @param seed - Optional seed value
+ * @returns Noise value between -1 and 1
+ */
+export function octaveNoise(
+  x: number,
+  y: number = 0,
+  octaves: number = 4,
+  persistence: number = 0.5,
+  seed: number = 0
+): number {
+  let total = 0;
+  let frequency = 1;
+  let amplitude = 1;
+  let maxValue = 0;
+  
+  for (let i = 0; i < octaves; i++) {
+    total += noise(x * frequency, y * frequency, seed) * amplitude;
+    maxValue += amplitude;
+    amplitude *= persistence;
+    frequency *= 2;
+  }
+  
+  // Return normalized value
+  return total / maxValue;
 } 

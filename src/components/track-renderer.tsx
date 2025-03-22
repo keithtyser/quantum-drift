@@ -1,10 +1,11 @@
 import { useQuery, useQueryFirst } from 'koota/react';
 import { Entity } from 'koota';
 import { IsTrack, Transform, TrackSegment } from '../traits';
-import { Grid, Line } from '@react-three/drei';
+import { Grid, Line, Box, Text } from '@react-three/drei';
 import { useRef, MutableRefObject, useCallback, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { Group } from 'three';
+import { debugState } from './debug-controls';
 
 // Helper function to create edge points for the track
 function createTrackEdges(segment: any): [THREE.Vector3[], THREE.Vector3[]] {
@@ -46,6 +47,176 @@ function createTrackEdges(segment: any): [THREE.Vector3[], THREE.Vector3[]] {
   return [leftEdge, rightEdge];
 }
 
+// Component to render a barrier along track edge
+function BarrierLine({ points, side }: { points: THREE.Vector3[], side: 'left' | 'right' }) {
+  if (points.length < 2) return null;
+  
+  // Generate barrier posts
+  const barrierPosts = useMemo(() => {
+    const posts = [];
+    // Place posts every few points along the edge
+    for (let i = 0; i < points.length; i += 2) {
+      const point = points[i].clone();
+      // Adjust height for the post
+      point.y += 0.5; // Half height of the post
+      posts.push(point);
+    }
+    return posts;
+  }, [points]);
+  
+  const barrierColor = side === 'left' ? '#ff4444' : '#4444ff';
+  
+  return (
+    <group>
+      {/* Barrier line */}
+      <Line
+        points={points}
+        color={barrierColor}
+        lineWidth={4}
+      />
+      
+      {/* Barrier posts */}
+      {barrierPosts.map((position, index) => (
+        <mesh key={`${side}-post-${index}`} position={position}>
+          <boxGeometry args={[0.3, 1, 0.3]} />
+          <meshStandardMaterial color="#888888" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Track surface patterns based on segment type
+function TrackSurfacePattern({ segment, geometry }: { segment: any, geometry: THREE.BufferGeometry }) {
+  const getPatternTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    
+    // Clear canvas
+    ctx.fillStyle = '#444444';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw pattern based on segment type
+    switch (segment.type) {
+      case 'curve-left':
+      case 'curve-right':
+        // Draw curve pattern - diagonal lines
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 8;
+        for (let i = -canvas.width; i < canvas.width * 2; i += 40) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i + canvas.height, canvas.height);
+          ctx.stroke();
+        }
+        break;
+      case 'chicane':
+      case 's-curve':
+        // Draw chicane pattern - zig-zag lines
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        for (let y = 20; y < canvas.height; y += 60) {
+          for (let x = 0; x < canvas.width; x += 80) {
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 40, y + 30);
+            ctx.lineTo(x + 80, y);
+          }
+        }
+        ctx.stroke();
+        break;
+      case 'hill-up':
+        // Draw uphill pattern - upward-pointing chevrons
+        ctx.strokeStyle = '#446644';
+        ctx.lineWidth = 10;
+        for (let y = canvas.height; y > 0; y -= 60) {
+          ctx.beginPath();
+          for (let x = 0; x < canvas.width; x += 120) {
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 60, y - 30);
+            ctx.lineTo(x + 120, y);
+          }
+          ctx.stroke();
+        }
+        break;
+      case 'hill-down':
+        // Draw downhill pattern - downward-pointing chevrons
+        ctx.strokeStyle = '#664444';
+        ctx.lineWidth = 10;
+        for (let y = 0; y < canvas.height; y += 60) {
+          ctx.beginPath();
+          for (let x = 0; x < canvas.width; x += 120) {
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 60, y + 30);
+            ctx.lineTo(x + 120, y);
+          }
+          ctx.stroke();
+        }
+        break;
+      default:
+        // Draw straight pattern - dashed center line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([20, 20]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        
+        // Draw edge markings
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(20, 0);
+        ctx.lineTo(20, canvas.height);
+        ctx.moveTo(canvas.width - 20, 0);
+        ctx.lineTo(canvas.width - 20, canvas.height);
+        ctx.stroke();
+    }
+    
+    return new THREE.CanvasTexture(canvas);
+  };
+  
+  // Create texture if segment exists
+  const texture = useMemo(() => {
+    return getPatternTexture();
+  }, [segment.type]);
+  
+  // Get base color for the track type
+  const getTrackColor = () => {
+    switch (segment.type) {
+      case 'curve-left':
+      case 'curve-right':
+        return '#444466'; // Slight blue tint for curves
+      case 'chicane':
+      case 's-curve':
+        return '#445566'; // More pronounced blue for chicanes
+      case 'hill-up':
+        return '#446644'; // Green tint for uphill
+      case 'hill-down':
+        return '#664444'; // Red tint for downhill
+      default:
+        return '#444444'; // Default grey for straight
+    }
+  };
+  
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial 
+        color={getTrackColor()} 
+        roughness={0.9} 
+        metalness={0.1}
+        side={THREE.DoubleSide}
+        map={texture}
+      />
+    </mesh>
+  );
+}
+
 // Debug component to visualize track segment bounding box
 function DebugBoundingBox({ min, max }: { min: THREE.Vector3, max: THREE.Vector3 }) {
   const size = new THREE.Vector3().subVectors(max, min);
@@ -54,7 +225,7 @@ function DebugBoundingBox({ min, max }: { min: THREE.Vector3, max: THREE.Vector3
   return (
     <mesh position={center}>
       <boxGeometry args={[size.x, size.y, size.z]} />
-      <meshBasicMaterial color="red" wireframe={true} />
+      <meshBasicMaterial color="red" wireframe={true} opacity={0.3} transparent={true} />
     </mesh>
   );
 }
@@ -102,34 +273,25 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
     return max;
   }, [leftEdge, rightEdge]);
   
-  // Track color based on segment type
-  const getTrackColor = () => {
-    switch (segment.type) {
-      case 'curve-left':
-      case 'curve-right':
-        return '#444466';
-      case 'hill-up':
-        return '#446644';
-      case 'hill-down':
-        return '#664444';
-      default:
-        return '#444444';
-    }
-  };
-  
   // Create a simpler track visualization using a plane mesh for each segment
   const segmentMesh = useMemo(() => {
     if (leftEdge.length < 2 || rightEdge.length < 2) return null;
     
     const vertices: number[] = [];
     const indices: number[] = [];
+    const uvs: number[] = []; // Add UV coordinates for texturing
     
     // Create vertices by combining left and right edges
     for (let i = 0; i < leftEdge.length; i++) {
       // Left edge vertex
       vertices.push(leftEdge[i].x, leftEdge[i].y, leftEdge[i].z);
+      // Add UV - left edge is u=0
+      uvs.push(0, i / (leftEdge.length - 1));
+      
       // Right edge vertex
       vertices.push(rightEdge[i].x, rightEdge[i].y, rightEdge[i].z);
+      // Add UV - right edge is u=1
+      uvs.push(1, i / (rightEdge.length - 1));
     }
     
     // Create triangles (two triangles per quad)
@@ -147,53 +309,136 @@ function TrackSegmentView({ entity }: { entity: Entity }) {
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     
     return geometry;
   }, [leftEdge, rightEdge]);
   
+  // For edge detection, create slightly elevated invisible walls
+  const createBoundaryWalls = () => {
+    if (leftEdge.length < 2 || rightEdge.length < 2) return null;
+    
+    // Create invisible collision walls along track edges (slightly inside the visual edges)
+    const wallHeight = 1.5; // Height of invisible collision wall
+    
+    return (
+      <>
+        {/* Left boundary wall */}
+        <group>
+          {leftEdge.map((point, index) => {
+            if (index === leftEdge.length - 1) return null;
+            const nextPoint = leftEdge[index + 1];
+            const midPoint = new THREE.Vector3().lerpVectors(point, nextPoint, 0.5);
+            
+            // Calculate wall width (distance between points)
+            const width = point.distanceTo(nextPoint);
+            
+            // Calculate rotation to align with the edge
+            const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
+            const angle = Math.atan2(direction.x, direction.z);
+            
+            return (
+              <Box 
+                key={`left-wall-${index}`}
+                position={[midPoint.x, midPoint.y + wallHeight/2, midPoint.z]}
+                rotation={[0, -angle, 0]}
+                args={[width, wallHeight, 0.1]}
+              >
+                <meshBasicMaterial visible={debugState.showBoundaries} color="#ff000050" transparent opacity={0.3} />
+              </Box>
+            );
+          })}
+        </group>
+        
+        {/* Right boundary wall */}
+        <group>
+          {rightEdge.map((point, index) => {
+            if (index === rightEdge.length - 1) return null;
+            const nextPoint = rightEdge[index + 1];
+            const midPoint = new THREE.Vector3().lerpVectors(point, nextPoint, 0.5);
+            
+            // Calculate wall width (distance between points)
+            const width = point.distanceTo(nextPoint);
+            
+            // Calculate rotation to align with the edge
+            const direction = new THREE.Vector3().subVectors(nextPoint, point).normalize();
+            const angle = Math.atan2(direction.x, direction.z);
+            
+            return (
+              <Box 
+                key={`right-wall-${index}`}
+                position={[midPoint.x, midPoint.y + wallHeight/2, midPoint.z]}
+                rotation={[0, -angle, 0]}
+                args={[width, wallHeight, 0.1]}
+              >
+                <meshBasicMaterial visible={debugState.showBoundaries} color="#0000ff50" transparent opacity={0.3} />
+              </Box>
+            );
+          })}
+        </group>
+      </>
+    );
+  };
+  
   return (
     <group position={[0, 0, 0]}>
       {/* Track center line for debugging */}
-      <Line
-        points={controlPoints}
-        color="#ffffff"
-        lineWidth={1}
-        dashed={true}
-        dashSize={1}
-        dashScale={1}
-        opacity={0.5}
-      />
+      {debugState.showControlPoints && (
+        <Line
+          points={controlPoints}
+          color="#ffff00"
+          lineWidth={2}
+          dashed={true}
+          dashSize={1}
+          dashScale={1}
+        />
+      )}
       
-      {/* Track left edge */}
-      <Line
-        points={leftEdge}
-        color="#bbbbbb"
-        lineWidth={3}
-      />
-      
-      {/* Track right edge */}
-      <Line
-        points={rightEdge}
-        color="#bbbbbb"
-        lineWidth={3}
-      />
-      
-      {/* Track surface */}
-      {segmentMesh && (
-        <mesh geometry={segmentMesh}>
-          <meshStandardMaterial 
-            color={getTrackColor()} 
-            roughness={0.8} 
-            metalness={0.2}
-            side={THREE.DoubleSide}
-          />
+      {/* Control point visualization */}
+      {debugState.showControlPoints && controlPoints.map((point, index) => (
+        <mesh key={`control-${index}`} position={point}>
+          <sphereGeometry args={[0.5, 8, 8]} />
+          <meshBasicMaterial color="#ffff00" />
         </mesh>
+      ))}
+      
+      {/* Track surface with patterns */}
+      {segmentMesh && (
+        <TrackSurfacePattern segment={segment} geometry={segmentMesh} />
+      )}
+      
+      {/* Track edge barriers */}
+      <BarrierLine points={leftEdge} side="left" />
+      <BarrierLine points={rightEdge} side="right" />
+      
+      {/* Invisible boundary walls for collision */}
+      {createBoundaryWalls()}
+      
+      {/* Debug segment ID */}
+      {debugState.showTrackSegmentIds && (
+        <Text
+          position={[
+            controlPoints[Math.floor(controlPoints.length / 2)].x,
+            controlPoints[Math.floor(controlPoints.length / 2)].y + 3,
+            controlPoints[Math.floor(controlPoints.length / 2)].z,
+          ]}
+          fontSize={2}
+          color="#ffffff"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.1}
+          outlineColor="#000000"
+        >
+          {`ID: ${segment.index} (${segment.type})`}
+        </Text>
       )}
       
       {/* Debug bounding box */}
-      {/* <DebugBoundingBox min={boundingBoxMin} max={boundingBoxMax} /> */}
+      {debugState.showBoundaries && (
+        <DebugBoundingBox min={boundingBoxMin} max={boundingBoxMax} />
+      )}
     </group>
   );
 }
@@ -220,7 +465,7 @@ export function TrackView({ entity }: { entity: Entity }) {
     [entity]
   );
 
-  // Only render the ground plane and grid, individual segments are rendered separately
+  // Only render the ground grid and grid, individual segments are rendered separately
   return (
     <group ref={setInitial}>
       {/* The main ground grid for orientation */}
