@@ -11,11 +11,12 @@ const REVERSE_SPEED_THRESHOLD = 0.5; // Increased threshold for applying reverse
 const REVERSE_THRUST_MULTIPLIER = 100.0; // Extremely strong reverse thrust for much faster backwards movement
 const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
-// Maximum change in velocity per frame to prevent jerkiness
-const MAX_VELOCITY_DELTA = 2.0;
+// Used to limit the maximum acceleration rate during high-speed reverse
+const MAX_REVERSE_ACCELERATION = 1.0;
 
-// Last frame's velocity for smoothing (persists between frames)
-let lastVelocity = new THREE.Vector3();
+// Previous velocity for acceleration limiting (persists between frames)
+let prevVelocity = new THREE.Vector3();
+let isFirstFrame = true;
 
 /**
  * convertInputToMovement:
@@ -27,7 +28,7 @@ export function convertInputToMovement(world: World) {
 	world.query(Input, Transform, Movement).updateEach(([input, transform, movement]) => {
 		const { velocity, thrust, force } = movement;
 		
-		// Store initial velocity for calculating change
+		// Save initial velocity for this frame
 		const initialVelocity = velocity.clone();
 		
 		// Calculate current speed
@@ -37,6 +38,9 @@ export function convertInputToMovement(world: World) {
 		const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(transform.rotation);
 		const velocityNormalized = speed > 0.01 ? velocity.clone().normalize() : new THREE.Vector3();
 		const movingForward = velocityNormalized.dot(forwardDir) > 0;
+		
+		// Check if we're in high-speed reverse
+		const isHighSpeedReverse = speed > 15 && velocityNormalized.dot(forwardDir) < -0.5;
 		
 		// 1. Apply steering primarily from strafe input (A/D keys or left/right arrows)
 		// Steering effect scales with speed for more realistic feel
@@ -70,60 +74,61 @@ export function convertInputToMovement(world: World) {
 				const brakeForce = velocity.clone().normalize().negate().multiplyScalar(thrust * BRAKE_FORCE_MULTIPLIER * delta);
 				force.add(brakeForce);
 			} else if (speed <= REVERSE_SPEED_THRESHOLD) {
-				// When below threshold, apply extremely strong reverse thrust
-				// Apply more force-based acceleration and less direct velocity change for smoother acceleration
+				// Create a single unified reverse force that applies differently based on speed
+				const baseReverseForce = forwardDir.clone().multiplyScalar(-thrust * delta);
 				
-				// Determine whether we're already in high-speed reverse
-				const isHighSpeedReverse = speed > 15 && velocityNormalized.dot(forwardDir) < -0.5;
-				
-				// Primary reverse force calculation
-				const reverseForce = forwardDir.clone().multiplyScalar(-thrust * REVERSE_THRUST_MULTIPLIER * delta);
-				
-				// Apply more gradual force during high-speed reverse
 				if (isHighSpeedReverse) {
-					// For high-speed reverse, use more controlled force application
-					// This helps prevent jerky camera movement
-					force.add(reverseForce.multiplyScalar(0.8)); // Reduced force multiplier for stability
-					
-					// No direct velocity changes at high speed - rely on force for smooth acceleration
+					// For high-speed reverse, use steady force application to maintain speed
+					// This creates a more stable and predictable reverse motion for the camera
+					force.add(baseReverseForce.multiplyScalar(REVERSE_THRUST_MULTIPLIER * 0.5));
+				} else if (speed > 5) {
+					// Medium speed reverse - transitional behavior
+					// Apply moderate force plus some direct velocity change
+					force.add(baseReverseForce.multiplyScalar(REVERSE_THRUST_MULTIPLIER * 0.7));
+					velocity.addScaledVector(forwardDir, -thrust * delta * 0.5);
 				} else {
-					// For low-speed reverse, apply direct velocity changes for responsiveness
+					// Low speed or starting reverse - apply full force for responsive acceleration
+					force.add(baseReverseForce.multiplyScalar(REVERSE_THRUST_MULTIPLIER));
+					
+					// Apply direct velocity change for immediate response at low speeds
 					velocity.addScaledVector(forwardDir, -thrust * delta * 1.5);
-					force.add(reverseForce);
 					
 					// Apply kickstart boost only when starting from nearly stopped
 					if (speed < 0.1) {
 						velocity.addScaledVector(forwardDir, -thrust * delta * 3.0);
 					}
 				}
-			}
-		}
-		
-		// 5. Apply ground contact and friction
-		// Check if on ground (simple implementation)
-		if (transform.position.y <= GROUND_LEVEL) {
-			// Keep vehicle at ground level
-			transform.position.y = GROUND_LEVEL;
-			
-			// Apply ground friction based on whether we're braking or not
-			// Nearly eliminate friction when explicitly trying to reverse
-			const frictionMultiplier = (input.brake && speed <= REVERSE_SPEED_THRESHOLD) ? 0.05 : 1.0;
-			
-			// Apply ground friction (only to XZ plane)
-			const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
-			const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION * frictionMultiplier);
-			velocity.add(frictionForce);
-			
-			// Apply additional turning force for sharper cornering
-			if (input.strafe !== 0 && speed > 0.5) {
-				// Calculate steering force perpendicular to direction of travel
-				const steeringDir = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x);
-				const turnForce = steeringDir.clone().multiplyScalar(input.strafe * 0.5 * delta * speed);
-				velocity.add(turnForce);
+				
+				// Eliminate friction during reverse
+				if (transform.position.y <= GROUND_LEVEL) {
+					const frictionMultiplier = 0.02; // Extremely low friction during reverse
+					const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
+					const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION * frictionMultiplier);
+					velocity.add(frictionForce);
+				}
 			}
 		} else {
-			// Apply gravity when in air
-			velocity.add(GRAVITY.clone().multiplyScalar(delta));
+			// 5. Apply normal ground contact and friction when not braking
+			if (transform.position.y <= GROUND_LEVEL) {
+				// Keep vehicle at ground level
+				transform.position.y = GROUND_LEVEL;
+				
+				// Apply normal ground friction (only to XZ plane)
+				const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
+				const frictionForce = horizontalVelocity.clone().negate().multiplyScalar(GROUND_FRICTION);
+				velocity.add(frictionForce);
+				
+				// Apply additional turning force for sharper cornering
+				if (input.strafe !== 0 && speed > 0.5) {
+					// Calculate steering force perpendicular to direction of travel
+					const steeringDir = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x);
+					const turnForce = steeringDir.clone().multiplyScalar(input.strafe * 0.5 * delta * speed);
+					velocity.add(turnForce);
+				}
+			} else {
+				// Apply gravity when in air
+				velocity.add(GRAVITY.clone().multiplyScalar(delta));
+			}
 		}
 		
 		// 6. Apply boost
@@ -132,22 +137,23 @@ export function convertInputToMovement(world: World) {
 			force.add(boostForce);
 		}
 		
-		// 7. Apply velocity smoothing for high-speed reverse
-		// Calculate how much velocity has changed this frame
-		const velocityDelta = new THREE.Vector3().copy(velocity).sub(initialVelocity);
-		const deltaLength = velocityDelta.length();
-		
-		// If velocity is changing too quickly and we're in high-speed reverse, smooth it out
-		const isHighSpeedReverse = speed > 15 && velocityNormalized.dot(forwardDir) < -0.5;
-		if (isHighSpeedReverse && deltaLength > MAX_VELOCITY_DELTA) {
-			// Scale down the velocity change to prevent jerky camera movement
-			velocityDelta.multiplyScalar(MAX_VELOCITY_DELTA / deltaLength);
+		// 7. Limit maximum acceleration during high-speed reverse
+		if (isHighSpeedReverse && !isFirstFrame) {
+			// Calculate acceleration (velocity change) for this frame
+			const velChange = new THREE.Vector3().subVectors(velocity, prevVelocity);
+			const acceleration = velChange.length() / delta;
 			
-			// Apply the smoothed velocity
-			velocity.copy(initialVelocity).add(velocityDelta);
+			// If acceleration exceeds our limit, scale it down
+			if (acceleration > MAX_REVERSE_ACCELERATION) {
+				const scaleFactor = MAX_REVERSE_ACCELERATION / acceleration;
+				
+				// Adjust velocity to limit acceleration
+				velocity.copy(prevVelocity).addScaledVector(velChange, scaleFactor);
+			}
 		}
 		
-		// Store current velocity for next frame
-		lastVelocity.copy(velocity);
+		// Save velocity for next frame's acceleration calculation
+		prevVelocity.copy(velocity);
+		isFirstFrame = false;
 	});
 }
