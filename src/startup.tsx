@@ -5,11 +5,11 @@ import { actions } from './actions';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
 
 export function Startup({
-	initialCameraPosition = [0, 0, 50],
+	initialCameraPosition = [0, 5, 10],
 }: {
 	initialCameraPosition?: [number, number, number];
 }) {
-	const { spawnPlayer, spawnCamera } = useActions(actions);
+	const { spawnPlayer, spawnCamera, spawnTrack } = useActions(actions);
 	const world = useWorld();
 
 	useEffect(() => {
@@ -18,11 +18,15 @@ export function Startup({
 
 		// Spawn player (without movement)
 		const player = spawnPlayer();
+		
+		// Spawn track
+		const track = spawnTrack();
 
 		return () => {
 			player.destroy();
+			track.destroy();
 		};
-	}, [spawnPlayer, spawnCamera, initialCameraPosition]);
+	}, [spawnPlayer, spawnCamera, spawnTrack, initialCameraPosition]);
 
 	useFrame(() => {
 		updateSpatialHashing(world);
