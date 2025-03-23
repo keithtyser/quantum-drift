@@ -11,8 +11,7 @@ import { cameraFollowPlayer } from './systems/camera-follow-player';
 import { updateTrackSegments } from './systems/track-manager';
 import { enforceTrackBoundaries } from './systems/track-boundary';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
-import { PlayerController } from './systems/player-controller';
-import { IsPlayer, Transform } from './traits';
+import { IsPlayer, Transform, Movement } from './traits';
 
 export function GameLoop() {
 	const world = useWorld();
@@ -35,7 +34,6 @@ export function GameLoop() {
 		
 		// Physics updates
 		convertInputToMovement(world);
-		PlayerController(world);
 		applyForce(world);
 		moveEntities(world);
 		limitSpeed(world);
@@ -49,18 +47,20 @@ export function GameLoop() {
 		// Spatial hashing for optimized collision detection
 		updateSpatialHashing(world);
 		
-		// Camera updates
+		// Camera updates - critical for following the player
 		cameraFollowPlayer(world);
 
-		// Sync view state
+		// Sync view state - renders all entity positions
 		syncView(world);
 		
 		// Debug output every 60 frames
 		if (frameCount % 60 === 0) {
-			const player = world.queryFirst(IsPlayer, Transform);
+			const player = world.queryFirst(IsPlayer, Transform, Movement);
 			if (player) {
 				const transform = player.get(Transform);
+				const movement = player.get(Movement);
 				console.log('Player position:', transform?.position.toArray());
+				console.log('Player velocity:', movement?.velocity.length().toFixed(2));
 			}
 		}
 	});

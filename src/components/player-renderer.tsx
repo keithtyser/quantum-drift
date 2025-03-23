@@ -268,35 +268,42 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		scene.rotation.set(0, Math.PI, 0); // Facing forward
 		scene.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
 		
+		// Add the ship model to the group
+		groupRef.current.add(scene);
+		
 		return () => {
+			// Clean up
 			newWheels.forEach(wheel => {
 				groupRef.current?.remove(wheel);
 				wheel.geometry.dispose();
 				(wheel.material as THREE.Material).dispose();
 			});
+			
+			groupRef.current?.remove(scene);
 		};
-	}, [scene, groupRef.current]);
+	}, [scene]);
 
-	// Set up initial state with useCallback
+	// Set up initial state with useCallback - this is the critical function
 	const setInitial = useCallback(
 		(group: Group | null) => {
 			if (!group) return;
 			groupRef.current = group;
 
-			// Initialize with default position at origin
-			entity.add(Ref(scene));
-			if (!entity.has(Transform)) {
-				entity.set(Transform, {
-					position: new THREE.Vector3(0, 0.5, 0),
-					rotation: new THREE.Euler(0, 0, 0),
-					scale: new THREE.Vector3(1, 1, 1),
-				});
+			console.log("Setting up player model reference");
+			
+			// Add the reference to the entity
+			entity.add(Ref(group));
+			
+			// Log current transform position
+			if (entity.has(Transform)) {
+				const transform = entity.get(Transform)!;
+				console.log("Player initial position:", transform.position.toArray());
 			}
 		},
-		[entity, scene]
+		[entity]
 	);
-
-	// Update wheel rotation based on movement
+	
+	// Update vehicle effects based on movement
 	useEffect(() => {
 		if (!entity.has(Movement) || wheels.length === 0) return;
 		
@@ -320,12 +327,28 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		return () => clearInterval(interval);
 	}, [entity, wheels]);
 
+	// Manually sync the position from Transform directly
+	useEffect(() => {
+		if (!groupRef.current || !entity.has(Transform)) return;
+		
+		const syncTransform = () => {
+			const transform = entity.get(Transform);
+			if (!transform) return;
+
+			// Manual sync for debugging - shouldn't be needed but helps diagnose issues
+			groupRef.current!.position.copy(transform.position);
+			groupRef.current!.rotation.copy(transform.rotation);
+			groupRef.current!.scale.copy(transform.scale);
+		};
+		
+		const intervalId = setInterval(syncTransform, 16); // 60fps
+		
+		return () => clearInterval(intervalId);
+	}, [entity, groupRef.current]);
+
 	return (
 		<group ref={setInitial} name="Player">
-			<primitive object={scene} />
-			
-			{/* Add quantum-style edge highlighting */}
-			{groupRef.current && <ShipQuantumEdges parent={groupRef.current} />}
+			{/* We now add the model in the useEffect to ensure proper reference handling */}
 			
 			{/* Quantum shield effect */}
 			<QuantumShield radius={1.8} />

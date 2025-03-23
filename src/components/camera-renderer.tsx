@@ -15,14 +15,50 @@ function CameraView({ entity }: { entity: Entity }) {
 	const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
 	const world = useWorld();
 	
+	// Log for debugging
+	useEffect(() => {
+		if (entity.has(Transform)) {
+			const transform = entity.get(Transform)!;
+			console.log("Camera entity position:", transform.position.toArray());
+		}
+	}, [entity]);
+	
 	const setInitial = useCallback(
 		(cameraRef: ComponentRef<typeof PerspectiveCamera> | null) => {
 			if (!cameraRef) return;
+			
+			console.log("Setting up camera reference");
 			setCamera(cameraRef);
+			
+			// Store a reference to the camera in the entity
 			entity.add(Ref(cameraRef));
+			
+			// Log position for debugging
+			if (entity.has(Transform)) {
+				const transform = entity.get(Transform)!;
+				console.log("Camera initialized at position:", transform.position.toArray());
+			}
 		},
 		[entity]
 	);
+	
+	// Manual position sync for debugging - shouldn't be needed but helps diagnose issues
+	useEffect(() => {
+		if (!camera || !entity.has(Transform)) return;
+		
+		const syncTransform = () => {
+			const transform = entity.get(Transform);
+			if (!transform) return;
+			
+			// Force the camera position to match the entity
+			camera.position.copy(transform.position);
+			camera.rotation.copy(transform.rotation);
+		};
+		
+		const intervalId = setInterval(syncTransform, 16); // 60fps
+		
+		return () => clearInterval(intervalId);
+	}, [camera, entity]);
 	
 	// Update FOV based on player speed
 	useFrame(() => {
@@ -50,6 +86,7 @@ function CameraView({ entity }: { entity: Entity }) {
 
 export function CameraRenderer() {
 	const camera = useQueryFirst(IsCamera, Transform);
+	console.log("CameraRenderer - Camera entity found:", !!camera);
 	if (!camera) return null;
 	return <CameraView entity={camera} />;
 }
