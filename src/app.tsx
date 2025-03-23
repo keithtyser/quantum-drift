@@ -6,9 +6,8 @@ import { PostProcessing } from './components/postprocessing';
 import { GameLoop } from './frameloop';
 import { Startup } from './startup';
 import { Color } from 'three';
-import { DebugControls, debugState } from './components/debug-controls';
-import { OrbitControls, Stats } from '@react-three/drei';
-import { QuantumEffects } from './components/quantum-effects';
+import { DebugControls } from './components/debug-controls';
+import { OrbitControls, Stats, SoftShadows, Environment, Sky } from '@react-three/drei';
 
 export function App() {
 	console.log("App component rendering");
@@ -16,11 +15,35 @@ export function App() {
 	return (
 		<>
 			<Canvas 
-				style={{ background: '#000033' }}
-				shadows={true} 
-				gl={{ alpha: false, antialias: true }}
+				style={{ background: 'black' }} 
+				shadows="soft"
+				gl={{ 
+					alpha: false, 
+					antialias: true,
+					logarithmicDepthBuffer: true
+				}}
 				camera={{ position: [0, 10, 20], fov: 60 }}
 			>
+				{/* Enhanced shadows for better visual quality */}
+				<SoftShadows 
+					size={25}
+					focus={0.5}
+					samples={20}
+				/>
+				
+				{/* Environment lighting */}
+				<Environment preset="night" />
+				
+				{/* Quantum sky */}
+				<Sky 
+					distance={450000} 
+					sunPosition={[0, 1, 0]} 
+					inclination={0.1}
+					azimuth={0.25}
+					rayleigh={1}
+					turbidity={10}
+				/>
+				
 				{/* Enable OrbitControls for debugging */}
 				<OrbitControls 
 					enablePan={true}
@@ -29,20 +52,19 @@ export function App() {
 					target={[0, 0, -10]}
 				/>
 				
-				{/* Sky blue color for the background */}
-				<color attach="background" args={[new Color('#1a1a33')]} />
+				<color attach="background" args={[new Color('#000025')]} />
 				
 				{/* World coordinate axes helper */}
 				<axesHelper args={[10]} />
 				
 				{/* Debug sphere to confirm rendering works */}
-				<mesh position={[0, 0, 0]} castShadow receiveShadow>
+				<mesh position={[0, 0, 0]}>
 					<sphereGeometry args={[1, 16, 16]} />
-					<meshStandardMaterial color="hotpink" emissive="#400040" emissiveIntensity={0.5} />
+					<meshStandardMaterial color="hotpink" />
 				</mesh>
 				
-				{/* Debug ground plane with a grid pattern */}
-				<mesh position={[0, -1, 0]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
+				{/* Debug ground plane */}
+				<mesh position={[0, -1, 0]} rotation={[-Math.PI/2, 0, 0]}>
 					<planeGeometry args={[100, 100]} />
 					<meshStandardMaterial color="#444444" />
 				</mesh>
@@ -53,25 +75,52 @@ export function App() {
 				<CameraRenderer />
 				<PlayerRenderer />
 				<TrackRenderer />
-                
-				{/* Add quantum visual effects (conditionally rendered via component) */}
-				<QuantumEffects />
 
-				{/* Increased lighting for better visibility */}
-				<ambientLight intensity={1.5} /> 
+				{/* Primary ambient light */}
+				<ambientLight intensity={0.2} color="#6060ff" />
+				
+				{/* Main directional light (sun) */}
 				<directionalLight 
-					position={[10, 10, 10]} 
-					intensity={2.0} 
+					position={[10, 20, 10]} 
+					intensity={1.5} 
 					castShadow 
-					shadow-mapSize={[2048, 2048]} 
+					shadow-mapSize={[2048, 2048]}
+					shadow-camera-left={-20}
+					shadow-camera-right={20}
+					shadow-camera-top={20}
+					shadow-camera-bottom={-20}
+					shadow-camera-far={50}
+					color="#ffffdd"
 				/>
-				<directionalLight position={[-10, 10, -10]} intensity={1.0} />
-				<hemisphereLight args={['#8888ff', '#333333', 0.8]} />
+				
+				{/* Secondary directional light for fill */}
+				<directionalLight 
+					position={[-10, 10, -10]} 
+					intensity={0.5} 
+					color="#8080ff"
+				/>
+				
+				{/* Dynamic point lights for atmosphere */}
+				<pointLight 
+					position={[0, 15, -30]} 
+					intensity={1.5} 
+					color="#00ffff" 
+					distance={50} 
+					decay={2}
+				/>
+				
+				<pointLight 
+					position={[-20, 5, -20]} 
+					intensity={1} 
+					color="#ff00ff" 
+					distance={40} 
+					decay={2}
+				/>
 				
 				<PostProcessing />
 				
-				{/* Show stats if enabled */}
-				{debugState.showFPS && <Stats />}
+				{/* Show stats */}
+				<Stats />
 			</Canvas>
 			
 			{/* Render debug controls outside of Canvas so they're always visible */}
