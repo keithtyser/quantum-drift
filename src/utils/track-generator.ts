@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { noise, octaveNoise } from './perlin';
+import { noise } from './perlin';
 
 export type SegmentType = 'straight' | 'curve-left' | 'curve-right' | 'hill-up' | 'hill-down' | 'chicane' | 's-curve';
 
@@ -14,22 +14,21 @@ export interface TrackSegmentParams {
   type: SegmentType;
 }
 
-// Configuration for track generation - enhanced for more variety
+// Configuration for track generation - simplified for stability and debugging
 export const TRACK_CONFIG = {
   segmentLength: 50,          // Length of each segment
   trackWidth: 20,             // Width of the track
-  minCurvature: -0.3,         // Increased curvature for more visible turns
-  maxCurvature: 0.3,          // Increased curvature for more visible turns
-  minElevation: -2.0,         // More significant elevation changes
-  maxElevation: 2.0,          // More significant elevation changes
-  curveFrequency: 0.4,        // More frequent curves
-  elevationFrequency: 0.2,    // More frequent elevation changes
-  chicaneChance: 0.05,        // More common chicanes
-  sCurveChance: 0.05,         // More common S-curves
-  renderDistance: 10,         // More segments visible at once
+  minCurvature: -0.1,         // Reduced curvature for stability
+  maxCurvature: 0.1,          // Reduced curvature for stability
+  minElevation: -0.5,         // Minimal elevation change for debugging
+  maxElevation: 0.5,          // Minimal elevation change for debugging
+  curveFrequency: 0.2,        // Less frequent curves
+  elevationFrequency: 0.1,    // Less frequent elevation changes
+  chicaneChance: 0.02,        // Very rare chicanes
+  sCurveChance: 0.02,         // Very rare S-curves
+  renderDistance: 8,          // More segments visible at once
   seed: 12345,                // Fixed seed for consistent generation
-  pointsPerSegment: 6,        // More control points for smoother segments
-  initialStraightSegments: 3, // Reduced number of initial straight segments
+  pointsPerSegment: 4,        // Fewer control points for simpler segments
 };
 
 // Debug flag
@@ -128,53 +127,41 @@ export function generateNextSegment(
   const startPosition = prevSegment.endPosition.clone();
   const startDirection = prevSegment.endDirection.clone();
   
-  // First few segments should be straight for stability
+  // First 5 segments should always be straight for stability
   let type: SegmentType = 'straight';
   let curvature = 0;
   let elevation = 0;
   
-  // After initial straight segments, start adding variations
-  if (index > TRACK_CONFIG.initialStraightSegments) {
-    // Use octave noise for more varied patterns
+  // After segment 5, start adding variations
+  if (index > 5) {
+    // Use Perlin noise with known seed for consistency
     const noiseSeed = index * 0.3;
-    const noiseSample = octaveNoise(noiseSeed, 0, 3, 0.5, TRACK_CONFIG.seed * 0.01);
+    const noiseSample = noise(noiseSeed, 0, TRACK_CONFIG.seed * 0.01);
     
     // Determine segment type based on noise
-    if (Math.abs(noiseSample) > 0.5) { // Lowered threshold to 0.5 for more curves
-      // Curves - more common and more pronounced
+    if (Math.abs(noiseSample) > 0.7) {
+      // Curves
       if (noiseSample > 0) {
         type = 'curve-right';
-        curvature = 0.2 + Math.abs(noiseSample) * 0.1; // Variable curvature
+        curvature = 0.1;
       } else {
         type = 'curve-left';
-        curvature = -(0.2 + Math.abs(noiseSample) * 0.1); // Variable curvature
+        curvature = -0.1;
       }
-    } else if (Math.abs(noiseSample) > 0.8) { // Still rare, but more common
-      // Special segments: hills, chicanes, s-curves
-      const typeRand = Math.abs(octaveNoise(noiseSeed, 2, 2, 0.6, TRACK_CONFIG.seed));
+    } else if (Math.abs(noiseSample) > 0.9) {
+      // Very rare: hills, chicanes, s-curves
+      const typeRand = Math.abs(noise(noiseSeed, 2, TRACK_CONFIG.seed));
       if (typeRand < 0.3) {
         type = 'hill-up';
-        elevation = 1.5 + Math.abs(noiseSample); // Pronounced hills
+        elevation = 0.5;
       } else if (typeRand < 0.6) {
         type = 'hill-down';
-        elevation = -(1.5 + Math.abs(noiseSample)); // Pronounced hills
+        elevation = -0.5;
       } else if (typeRand < 0.8) {
         type = 'chicane';
       } else {
         type = 's-curve';
       }
-    }
-    
-    // Prevent consecutive segments of the same rare type
-    if ((type === 'chicane' || type === 's-curve') && 
-        (prevSegment.type === 'chicane' || prevSegment.type === 's-curve')) {
-      type = 'straight';
-    }
-    
-    // Prevent consecutive hills in the same direction
-    if ((type === 'hill-up' && prevSegment.type === 'hill-up') || 
-        (type === 'hill-down' && prevSegment.type === 'hill-down')) {
-      type = 'straight';
     }
   }
   
@@ -182,145 +169,54 @@ export function generateNextSegment(
   let endPosition = new THREE.Vector3();
   let endDirection = new THREE.Vector3();
   
-  // Implement different segment types with improved calculations
+  // Simplified track geometry for debugging
   if (type === 'straight') {
     // Straight segment - extend in the direction of the start
     endPosition.copy(startPosition).addScaledVector(startDirection, TRACK_CONFIG.segmentLength);
     endDirection.copy(startDirection);
   } 
   else if (type === 'curve-left' || type === 'curve-right') {
-    // Improved curve logic with proper rotation
+    // Simple curve logic
     const curveSign = type === 'curve-right' ? 1 : -1;
-    const angle = Math.abs(curvature) * curveSign; // Use proper curvature value
+    const angle = 0.2 * curveSign; // Simplified curve angle
     
-    // Create rotation matrix for smooth direction change
-    const rotationMatrix = new THREE.Matrix4().makeRotationY(angle);
-    endDirection.copy(startDirection).applyMatrix4(rotationMatrix).normalize();
+    // Rotate direction
+    endDirection.copy(startDirection);
+    const rotationMatrix = new THREE.Matrix4().makeRotationY(-angle);
+    endDirection.applyMatrix4(rotationMatrix);
     
-    // Calculate radius of the curve (approximate)
-    const radius = TRACK_CONFIG.segmentLength / Math.abs(angle * 2);
-    
-    // Calculate curve center point
-    const center = startPosition.clone().add(
-      new THREE.Vector3(-startDirection.z, 0, startDirection.x)
-        .normalize()
-        .multiplyScalar(radius * curveSign)
+    // Calculate end position (simplified)
+    endPosition.copy(startPosition).addScaledVector(
+      startDirection, 
+      TRACK_CONFIG.segmentLength * 0.7
+    ).addScaledVector(
+      new THREE.Vector3(curveSign, 0, 0),
+      TRACK_CONFIG.segmentLength * 0.3
     );
-    
-    // Calculate end position using vector from center
-    const vectorFromCenter = startPosition.clone().sub(center);
-    vectorFromCenter.applyMatrix4(rotationMatrix);
-    endPosition.copy(center).add(vectorFromCenter);
   }
   else if (type === 'hill-up' || type === 'hill-down') {
-    // Improved hill logic with smoother transitions
+    // Simple hill
     const elevationSign = type === 'hill-up' ? 1 : -1;
     
-    // Calculate end position with proper elevation change
     endPosition.copy(startPosition)
-      .addScaledVector(startDirection, TRACK_CONFIG.segmentLength);
-    
-    // Add elevation change and adjust direction angle
-    endPosition.y += elevation * elevationSign;
-    
-    // Calculate slope angle
-    const slopeAngle = Math.atan2(Math.abs(elevation), TRACK_CONFIG.segmentLength);
-    
-    // Create new direction vector with proper pitch
+      .addScaledVector(startDirection, TRACK_CONFIG.segmentLength)
+      .add(new THREE.Vector3(0, elevation * elevationSign, 0));
+      
     endDirection.copy(startDirection);
-    if (type === 'hill-up') {
-      endDirection.y = Math.sin(slopeAngle);
-    } else {
-      endDirection.y = -Math.sin(slopeAngle);
-    }
-    
-    // Normalize direction
-    endDirection.normalize();
-  }
-  else if (type === 'chicane') {
-    // Chicane - quick left-right or right-left sequence
-    const direction = Math.random() > 0.5 ? 1 : -1; // Random direction
-    const angle1 = 0.15 * direction;
-    const angle2 = -0.3 * direction; // Opposite direction, stronger
-    
-    // Start with a slight turn in one direction
-    const midDirection = startDirection.clone();
-    const rotMatrix1 = new THREE.Matrix4().makeRotationY(angle1);
-    midDirection.applyMatrix4(rotMatrix1).normalize();
-    
-    // Calculate midpoint
-    const midPoint = startPosition.clone().addScaledVector(midDirection, TRACK_CONFIG.segmentLength * 0.5);
-    
-    // Then turn more sharply in the opposite direction
-    const rotMatrix2 = new THREE.Matrix4().makeRotationY(angle2);
-    endDirection.copy(midDirection).applyMatrix4(rotMatrix2).normalize();
-    
-    // Calculate end position based on both turns
-    endPosition.copy(midPoint).addScaledVector(endDirection, TRACK_CONFIG.segmentLength * 0.5);
-  }
-  else if (type === 's-curve') {
-    // S-curve - smooth S shape
-    const direction = Math.random() > 0.5 ? 1 : -1; // Random direction
-    const angle1 = 0.2 * direction;
-    const angle2 = -0.4 * direction; // Opposite direction, stronger
-    
-    // Create a smooth S-curve with multiple control points
-    const segmentThird = TRACK_CONFIG.segmentLength / 3;
-    
-    // Calculate directions at various points
-    const firstThirdDir = startDirection.clone();
-    const rotMatrix1 = new THREE.Matrix4().makeRotationY(angle1);
-    firstThirdDir.applyMatrix4(rotMatrix1).normalize();
-    
-    const secondThirdDir = firstThirdDir.clone();
-    const rotMatrix2 = new THREE.Matrix4().makeRotationY(angle2);
-    secondThirdDir.applyMatrix4(rotMatrix2).normalize();
-    
-    // Set end direction
-    endDirection.copy(secondThirdDir);
-    
-    // Calculate control points
-    const firstThirdPoint = startPosition.clone().addScaledVector(startDirection, segmentThird);
-    const secondThirdPoint = firstThirdPoint.clone().addScaledVector(firstThirdDir, segmentThird);
-    
-    // Calculate final position
-    endPosition.copy(secondThirdPoint).addScaledVector(secondThirdDir, segmentThird);
   }
   else {
-    // Default fallback to straight for any other types
+    // Default to straight for any other types for now
     endPosition.copy(startPosition).addScaledVector(startDirection, TRACK_CONFIG.segmentLength);
     endDirection.copy(startDirection);
   }
   
-  // Create more detailed control points for smoothness
-  let controlPoints: THREE.Vector3[];
-  
-  if (type === 'chicane' || type === 's-curve') {
-    // For complex segments, create more detailed control points
-    controlPoints = [];
-    const steps = TRACK_CONFIG.pointsPerSegment;
-    
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      
-      // Bezier interpolation
-      if (type === 'chicane') {
-        const midPoint = startPosition.clone().lerp(endPosition, 0.5);
-        midPoint.x += (type === 'chicane' ? 5 : 0) * (t < 0.5 ? t * 2 : (1 - t) * 2);
-        
-        const p = startPosition.clone().lerp(midPoint, t < 0.5 ? t * 2 : 1)
-                  .lerp(endPosition, t < 0.5 ? 0 : (t - 0.5) * 2);
-        controlPoints.push(p);
-      } else {
-        // S-curve uses simple lerp for now
-        const point = startPosition.clone().lerp(endPosition, t);
-        controlPoints.push(point);
-      }
-    }
-  } else {
-    // Use the standard control point calculation for simpler segments
-    controlPoints = calculateControlPoints(startPosition, startDirection, endPosition, endDirection);
-  }
+  // Create simple control points (just interpolate)
+  const controlPoints = [
+    startPosition.clone(),
+    startPosition.clone().add(endPosition.clone().sub(startPosition).multiplyScalar(0.33)),
+    startPosition.clone().add(endPosition.clone().sub(startPosition).multiplyScalar(0.66)),
+    endPosition.clone()
+  ];
   
   // Log the generated segment details for debugging
   if (DEBUG) {

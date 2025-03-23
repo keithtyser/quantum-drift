@@ -198,7 +198,8 @@ function QuantumShield({ radius = 1.5 }: { radius?: number }) {
 }
 
 export function PlayerView({ entity }: { entity: Entity }) {
-	const { scene } = useGLTF(src);
+	// Use preloaded model if available, otherwise load on demand
+	const { scene } = usePreloadedFighterModel();
 	const groupRef = useRef<Group | null>(null) as MutableRefObject<Group | null>;
 	const [wheels, setWheels] = useState<THREE.Mesh[]>([]);
 	const trailRef = useRef<THREE.Group>(null);
@@ -206,10 +207,12 @@ export function PlayerView({ entity }: { entity: Entity }) {
 	
 	// Clone the model and create the vehicle
 	useEffect(() => {
-		if (!groupRef.current) return;
+		if (!groupRef.current || !scene) return;
+		
+		console.log("PlayerView: Setting up fighter model");
 		
 		// Enhance ship materials with quantum effects
-		scene.traverse((child) => {
+		scene.traverse((child: THREE.Object3D) => {
 			if (child instanceof THREE.Mesh) {
 				// Main body parts
 				if (child.material instanceof THREE.MeshStandardMaterial) {
@@ -270,7 +273,10 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		scene.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
 		
 		// Add the ship model to the group
-		groupRef.current.add(scene);
+		const clonedScene = scene.clone();
+		groupRef.current.add(clonedScene);
+		
+		console.log("PlayerView: Fighter model setup complete");
 		
 		return () => {
 			// Clean up
@@ -280,9 +286,9 @@ export function PlayerView({ entity }: { entity: Entity }) {
 				(wheel.material as THREE.Material).dispose();
 			});
 			
-			groupRef.current?.remove(scene);
+			groupRef.current?.remove(clonedScene);
 		};
-	}, [scene]);
+	}, [scene, groupRef.current]);
 
 	// Set up initial state with useCallback - this is the critical function
 	const setInitial = useCallback(
@@ -414,12 +420,62 @@ export function PlayerRenderer() {
 			const allEntities = world.query();
 			console.log(`PlayerRenderer: Total entities in world: ${allEntities.length}`);
 			
-			// Attempt to access entity by direct query
-			const playerResults = world.query(IsPlayer);
-			const playerDirect = playerResults.length > 0 ? playerResults[0] : null;
-			console.log("PlayerRenderer: Direct query result:", !!playerDirect);
+			// Add detailed logging for better diagnostics
+			if (players.length > 0) {
+				const playerEntity = players[0];
+				const hasTransform = playerEntity.has(Transform);
+				console.log(`Player entity details: ID=${playerEntity.id}, HasTransform=${hasTransform}`);
+				
+				if (hasTransform) {
+					const transform = playerEntity.get(Transform)!;
+					console.log(`Player position: [${transform.position.x.toFixed(2)}, ${transform.position.y.toFixed(2)}, ${transform.position.z.toFixed(2)}]`);
+				}
+			} else {
+				console.error("No player entities found in PlayerRenderer - this should not happen!");
+			}
 		}
 	}, [world]);
 	
-	return player ? <PlayerView entity={player} /> : null;
+	// If no player entity is found, render a fallback debug sphere
+	if (!player) {
+		console.warn("PlayerRenderer: No player entity found, rendering fallback");
+		return (
+			<group name="FallbackPlayer" position={[0, 1, 0]}>
+				<mesh>
+					<sphereGeometry args={[1, 16, 16]} />
+					<meshStandardMaterial color="#ff00ff" emissive="#ff00ff" emissiveIntensity={1.0} />
+				</mesh>
+				<pointLight color="#ff00ff" intensity={1.0} distance={5} />
+			</group>
+		);
+	}
+	
+	// If we found a player entity, render the full player model
+	return <PlayerView entity={player} />;
+}
+
+// Custom hook to use preloaded fighter model or load on demand
+function usePreloadedFighterModel() {
+	const [model, setModel] = useState<any>(null);
+	
+	useEffect(() => {
+		// Try to get preloaded model from cache
+		import('../utils/preload-assets').then(({ getPreloadedModel }) => {
+			const preloadedModel = getPreloadedModel('fighter');
+			
+			if (preloadedModel) {
+				console.log("Using preloaded fighter model");
+				setModel(preloadedModel);
+			} else {
+				// If not preloaded, load on demand using useGLTF
+				console.log("Preloaded fighter model not found, loading on demand");
+				import('@react-three/drei').then(({ useGLTF }) => {
+					const loadedModel = useGLTF(src);
+					setModel(loadedModel);
+				});
+			}
+		});
+	}, []);
+	
+	return model || { scene: null };
 }

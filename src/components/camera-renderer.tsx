@@ -55,17 +55,30 @@ function CameraView({ entity }: { entity: Entity }) {
 			camera.rotation.copy(transform.rotation);
 		};
 		
+		// More frequent sync for debugging
 		const intervalId = setInterval(syncTransform, 16); // 60fps
 		
 		return () => clearInterval(intervalId);
 	}, [camera, entity]);
 	
-	// Update FOV based on player speed
+	// Update FOV based on player speed and log player entity status
 	useFrame(() => {
 		if (!camera) return;
 		
 		// Find player entity
 		const player = world.queryFirst(IsPlayer, Movement);
+		
+		// Log camera and player relationship for debugging
+		if (frameCount % 60 === 0) {
+			console.log("Camera following: Player found =", !!player);
+			if (player && camera) {
+				const playerPosition = player.get(Transform)?.position;
+				if (playerPosition) {
+					const distance = playerPosition.distanceTo(camera.position);
+					console.log(`Camera distance to player: ${distance.toFixed(2)}`);
+				}
+			}
+		}
 		
 		if (player && player.has(Movement)) {
 			const movement = player.get(Movement)!;
@@ -84,9 +97,18 @@ function CameraView({ entity }: { entity: Entity }) {
 	return <PerspectiveCamera ref={setInitial} makeDefault fov={BASE_FOV} near={0.1} far={1000} />;
 }
 
+// Track frame count for logging
+let frameCount = 0;
+
 export function CameraRenderer() {
 	const camera = useQueryFirst(IsCamera, Transform);
 	console.log("CameraRenderer - Camera entity found:", !!camera);
+	
+	// Increment frame count for logging purposes
+	useFrame(() => {
+		frameCount++;
+	});
+	
 	if (!camera) return null;
 	return <CameraView entity={camera} />;
 }

@@ -1,75 +1,51 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWorld } from 'koota/react';
-import { actions } from './actions';
+import { isWorldInitialized } from './world';
+import { IsPlayer, IsCamera } from './traits';
 
 /**
- * Initializes the world and spawns necessary entities
+ * Component that verifies world initialization rather than performing it
+ * Initialization is now done in world.ts before React rendering
  */
 export function Startup({ initialCameraPosition }: { initialCameraPosition: [number, number, number] }) {
 	const world = useWorld();
-	// Use a ref instead of state to track initialization across StrictMode remounts
-	const initializationAttempted = useRef(false);
 	const [error, setError] = useState<Error | null>(null);
+	const checkPerformed = useRef(false);
 
 	useEffect(() => {
 		// Skip if world is not yet available
-		if (!world) return;
-
-		console.log("==========================================");
-		console.log("           STARTUP USE EFFECT            ");
-		console.log("  Initialization attempted:", initializationAttempted.current);
-		console.log("==========================================");
+		if (!world || checkPerformed.current) return;
 		
-		// Return early if initialization was already attempted
-		// This helps with React StrictMode double-mounting
-		if (initializationAttempted.current) {
-			console.log("Startup already attempted, skipping initialization");
-			return;
-		}
-
-		// Mark initialization as attempted
-		initializationAttempted.current = true;
+		checkPerformed.current = true;
+		
+		console.log("Startup component - Verifying world initialization...");
 		
 		try {
-			console.log("==========================================");
-			console.log("              GAME STARTUP                ");
-			console.log("==========================================");
-			
-			// Create the actions object with the world
-			const gameActions = actions(world);
-			
-			// Create procedural track
-			console.log("Spawning procedural track");
-			const trackEntity = gameActions.spawnTrack();
-			console.log(`Track entity spawned: ${trackEntity?.id}`);
-			
-			// Camera position debugging
-			console.log(`Spawning camera at position: (${initialCameraPosition[0]}, ${initialCameraPosition[1]}, ${initialCameraPosition[2]})`);
-			
-			// Spawn camera using the actions API
-			const cameraEntity = gameActions.spawnCamera(initialCameraPosition);
-			console.log(`Camera spawned: ${cameraEntity?.id}`);
-			
-			// Spawn player using the actions API
-			console.log("Spawning player entity");
-			const playerEntity = gameActions.spawnPlayer();
-			console.log(`Player spawned: ${playerEntity?.id}`);
-			
-			// Check if player entity was created successfully
-			if (!playerEntity) {
-				console.error("Player entity creation failed - returned undefined/null");
-				throw new Error("Failed to create player entity");
+			// Verify world is properly initialized
+			if (!isWorldInitialized()) {
+				throw new Error("World not properly initialized before component rendering");
 			}
 			
-			console.log("Game initialization complete");
-			console.log("==========================================");
+			// Additional verification could be done here
+			const playerCount = world.query(IsPlayer).length;
+			const cameraCount = world.query(IsCamera).length;
+			
+			console.log(`Verification complete: Found ${playerCount} player entities and ${cameraCount} camera entities`);
+			
+			if (playerCount === 0) {
+				console.warn("No player entities found during verification!");
+			}
+			
+			if (cameraCount === 0) {
+				console.warn("No camera entities found during verification!");
+			}
 		} catch (err) {
-			console.error("Error during game initialization:", err);
+			console.error("Error during startup verification:", err);
 			setError(err instanceof Error ? err : new Error(String(err)));
 		}
-	}, [world, initialCameraPosition]);
+	}, [world]);
 
-	// Display error if initialization failed
+	// Display error if initialization check failed
 	if (error) {
 		return (
 			<div style={{ 

@@ -9,7 +9,7 @@ const GROUND_LEVEL = 0.5; // Height of vehicle from ground
 const GROUND_FRICTION = 0.02; // Friction when on ground
 const REVERSE_SPEED_THRESHOLD = 0.5; // Threshold for applying reverse thrust
 const REVERSE_THRUST_MULTIPLIER = 2.0; // Strong reverse thrust for fast backwards movement
-const FORWARD_THRUST_MULTIPLIER = 5.0; // Increased forward thrust for faster forward movement
+const FORWARD_THRUST_MULTIPLIER = 2.5; // Increased forward thrust for faster forward movement
 const BRAKE_FORCE_MULTIPLIER = 1.5; // How much stronger braking is than regular thrust
 
 /**

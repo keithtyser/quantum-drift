@@ -8,3 +8,4 @@ export * from './spatial-hash-map';
 export * from './ref';
 export * from './maxSpeed';
 export * from './is-track';
+export * from './track-segment';
