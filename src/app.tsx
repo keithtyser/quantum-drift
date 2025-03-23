@@ -5,15 +5,91 @@ import { TrackRenderer } from './components/track-renderer';
 import { PostProcessing } from './components/postprocessing';
 import { GameLoop } from './frameloop';
 import { Startup } from './startup';
-import { Color } from 'three';
+import { Color, Vector3 } from 'three';
 import { DebugControls } from './components/debug-controls';
 import { OrbitControls, Stats, SoftShadows, Environment, Sky, Grid } from '@react-three/drei';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useWorld } from 'koota/react';
+import { IsPlayer, Transform, Movement, Input } from './traits';
 
 // Controls state available across the app
 export const controlsState = {
 	orbitControlsEnabled: false
 };
+
+// Debug component to show player position
+function PlayerDebugInfo() {
+	const [playerInfo, setPlayerInfo] = useState({ 
+		exists: false, 
+		position: new Vector3(), 
+		velocity: new Vector3(),
+		inputs: { forward: 0, strafe: 0, boost: false, brake: false }
+	});
+	const world = useWorld();
+	
+	useEffect(() => {
+		// Update player info 10 times per second
+		const intervalId = setInterval(() => {
+			if (!world) return;
+			
+			const player = world.queryFirst(IsPlayer, Transform, Movement);
+			if (player) {
+				const transform = player.get(Transform);
+				const movement = player.get(Movement);
+				const input = player.get(Input);
+				
+				setPlayerInfo({
+					exists: true,
+					position: transform?.position.clone() || new Vector3(),
+					velocity: movement?.velocity.clone() || new Vector3(),
+					inputs: input || { forward: 0, strafe: 0, boost: false, brake: false }
+				});
+			} else {
+				setPlayerInfo({...playerInfo, exists: false});
+			}
+		}, 100);
+		
+		return () => clearInterval(intervalId);
+	}, [world]);
+	
+	if (!playerInfo.exists) {
+		return (
+			<div style={{
+				position: 'absolute',
+				top: '10px',
+				left: '10px',
+				background: 'rgba(255,0,0,0.7)',
+				color: 'white',
+				padding: '10px',
+				borderRadius: '5px',
+				fontFamily: 'monospace',
+				fontSize: '12px',
+				zIndex: 1000
+			}}>
+				No player entity found!
+			</div>
+		);
+	}
+	
+	return (
+		<div style={{
+			position: 'absolute',
+			top: '10px',
+			left: '10px',
+			background: 'rgba(0,0,0,0.7)',
+			color: 'white',
+			padding: '10px',
+			borderRadius: '5px',
+			fontFamily: 'monospace',
+			fontSize: '12px',
+			zIndex: 1000
+		}}>
+			<div>Player position: {playerInfo.position.x.toFixed(2)}, {playerInfo.position.y.toFixed(2)}, {playerInfo.position.z.toFixed(2)}</div>
+			<div>Velocity: {playerInfo.velocity.length().toFixed(2)} ({playerInfo.velocity.x.toFixed(2)}, {playerInfo.velocity.y.toFixed(2)}, {playerInfo.velocity.z.toFixed(2)})</div>
+			<div>Input state: {JSON.stringify(playerInfo.inputs)}</div>
+		</div>
+	);
+}
 
 export function App() {
 	console.log("App component rendering");
@@ -58,7 +134,9 @@ export function App() {
 					antialias: true,
 					logarithmicDepthBuffer: true
 				}}
-				camera={{ position: [0, 8, 15], fov: 70 }}
+				camera={{ position: [0, 5, 10], fov: 70 }}
+				dpr={[1, 2]} // Set a reasonable pixel ratio range for better performance
+				performance={{ min: 0.5 }} // Allow performance scaling
 			>
 				{/* Enhanced shadows for better visual quality */}
 				<SoftShadows 
@@ -127,13 +205,19 @@ export function App() {
 					/>
 				</mesh>
 				
+				{/* Initialize the game world and spawn entities */}
 				<Startup initialCameraPosition={[0, 5, 10]} />
+				
+				{/* Run the game loop */}
 				<GameLoop />
 
-				<CameraRenderer />
-				<PlayerRenderer />
-				<TrackRenderer />
-
+				{/* Entity renderers - use React Suspense to handle async loading */}
+				<Suspense fallback={null}>
+					<CameraRenderer />
+					<PlayerRenderer />
+					<TrackRenderer />
+				</Suspense>
+				
 				{/* Primary ambient light */}
 				<ambientLight intensity={0.3} color="#6060ff" />
 				
@@ -200,6 +284,9 @@ export function App() {
 			
 			{/* Render debug controls outside of Canvas so they're always visible */}
 			<DebugControls />
+			
+			{/* Player debug information */}
+			<PlayerDebugInfo />
 
 			{/* OrbitControls status indicator */}
 			{orbitEnabled && (
