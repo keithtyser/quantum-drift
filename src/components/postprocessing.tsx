@@ -13,17 +13,17 @@ import { BlendFunction, KernelSize } from 'postprocessing';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// Quantum theme configuration
+// Enhanced quantum theme configuration
 const QUANTUM_CONFIG = {
-  bloomIntensity: 1.5,
-  bloomLevels: 6,
-  chromaticOffset: 0.004,
-  noiseIntensity: 0.2,
-  vignetteIntensity: 0.5,
-  godRayIntensity: 0.8,
-  dofFocusDistance: 0.0,
-  dofFocalLength: 0.02,
-  dofBokehScale: 2.0
+  bloomIntensity: 2.0,
+  bloomLevels: 8,
+  chromaticOffset: 0.003,
+  noiseIntensity: 0.15,
+  vignetteIntensity: 0.4,
+  godRayIntensity: 1.0,
+  dofFocusDistance: 0.015,
+  dofFocalLength: 0.015,
+  dofBokehScale: 2.5
 };
 
 export function PostProcessing() {
@@ -34,10 +34,14 @@ export function PostProcessing() {
   // Create a sun light source for god rays
   useEffect(() => {
     if (!sunRef.current) {
-      const sunGeometry = new THREE.SphereGeometry(10, 16, 16);
-      const sunMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff00ff') });
+      const sunGeometry = new THREE.SphereGeometry(15, 32, 32);
+      const sunMaterial = new THREE.MeshBasicMaterial({ 
+        color: new THREE.Color('#ff00ff'),
+        transparent: true,
+        opacity: 0.9 
+      });
       const sun = new THREE.Mesh(sunGeometry, sunMaterial);
-      sun.position.set(0, 50, -100);
+      sun.position.set(0, 50, -120);
       scene.add(sun);
       sunRef.current = sun;
     }
@@ -53,6 +57,18 @@ export function PostProcessing() {
   useFrame((state, delta) => {
     // Simulate speed changes (in a real implementation, this would come from game state)
     speedRef.current = Math.sin(state.clock.elapsedTime * 0.5) * 0.5 + 0.5;
+    
+    // Make the sun pulse for more dynamic lighting
+    if (sunRef.current) {
+      const pulseFactor = (Math.sin(state.clock.elapsedTime * 0.3) * 0.2 + 1.0);
+      sunRef.current.scale.set(pulseFactor, pulseFactor, pulseFactor);
+      
+      // Slowly rotate the sun position for moving god rays
+      const angle = state.clock.elapsedTime * 0.05;
+      const radius = 70;
+      sunRef.current.position.x = Math.sin(angle) * radius;
+      sunRef.current.position.z = -120 + Math.cos(angle) * radius * 0.5;
+    }
   });
   
   return (
@@ -73,11 +89,11 @@ export function PostProcessing() {
         <GodRays
           sun={sunRef.current}
           blendFunction={BlendFunction.SCREEN}
-          samples={60}
-          density={0.96}
-          decay={0.92}
+          samples={100}
+          density={0.97}
+          decay={0.94}
           weight={QUANTUM_CONFIG.godRayIntensity}
-          exposure={0.6}
+          exposure={0.65}
           clampMax={1.0}
           kernelSize={KernelSize.LARGE}
           blur={true}
@@ -87,8 +103,8 @@ export function PostProcessing() {
       {/* Bloom effect for glowing quantum elements */}
       <Bloom 
         intensity={QUANTUM_CONFIG.bloomIntensity}
-        luminanceThreshold={0.2}
-        luminanceSmoothing={0.9}
+        luminanceThreshold={0.15}
+        luminanceSmoothing={0.95}
         kernelSize={KernelSize.HUGE}
       />
       
@@ -112,7 +128,7 @@ export function PostProcessing() {
       
       {/* Vignette to focus attention on the center of action */}
       <Vignette
-        offset={0.5}
+        offset={0.35}
         darkness={QUANTUM_CONFIG.vignetteIntensity}
         blendFunction={BlendFunction.NORMAL}
       />

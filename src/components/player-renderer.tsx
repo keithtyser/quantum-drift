@@ -13,7 +13,8 @@ import { createGlowTexture } from '../utils/texture-generator';
 const QUANTUM_PLAYER = {
 	COLORS: {
 		primaryGlow: new THREE.Color('#00ffff'),
-		exhaustGlow: new THREE.Color('#ff4400'),
+		secondaryGlow: new THREE.Color('#ff00ff'),
+		exhaustGlow: new THREE.Color('#ff6600'),
 		boostGlow: new THREE.Color('#ffaa00'),
 		trailColor: new THREE.Color('#00ffff'),
 		sparkleColor: new THREE.Color('#ffffff')
@@ -26,7 +27,7 @@ const QUANTUM_PLAYER = {
 	}
 };
 
-// Engine exhaust effect with particle system
+// Enhanced engine exhaust effect
 function QuantumExhaust({ 
 	position, 
 	color = QUANTUM_PLAYER.COLORS.exhaustGlow,
@@ -39,15 +40,25 @@ function QuantumExhaust({
 	const meshRef = useRef<THREE.Mesh>(null);
 	const positionVector = position instanceof THREE.Vector3 ? position : new THREE.Vector3(...position);
 	
+	// Add a pulsing light to make exhaust more visible
+	const lightRef = useRef<THREE.PointLight>(null);
+	
 	useFrame((state) => {
 		if (meshRef.current) {
 			// Animate exhaust flicker
-			const baseScale = isBoosting ? 1.5 : 1.0;
-			const randomFlicker = Math.random() * 0.2 + 0.9;
-			const flickerFreq = isBoosting ? 15 : 8;
-			const flicker = Math.sin(state.clock.elapsedTime * flickerFreq) * 0.1 + randomFlicker;
+			const baseScale = isBoosting ? 1.8 : 1.2; // Increased base size
+			const randomFlicker = Math.random() * 0.3 + 0.9; // More random variation
+			const flickerFreq = isBoosting ? 20 : 10; // Faster flicker
+			const flicker = Math.sin(state.clock.elapsedTime * flickerFreq) * 0.15 + randomFlicker; // More pronounced flicker
 			
 			meshRef.current.scale.set(baseScale * flicker, baseScale * flicker, baseScale * flicker);
+		}
+		
+		// Animate the point light
+		if (lightRef.current) {
+			const intensity = isBoosting ? 3.0 : 1.5;
+			const pulseFactor = Math.sin(state.clock.elapsedTime * 15) * 0.5 + 1.0;
+			lightRef.current.intensity = intensity * pulseFactor;
 		}
 	});
 	
@@ -55,36 +66,45 @@ function QuantumExhaust({
 		<group position={positionVector}>
 			{/* Inner bright core */}
 			<mesh ref={meshRef} rotation={[Math.PI / 2, 0, 0]}>
-				<cylinderGeometry args={[0.1, 0.3, 0.8, 16]} />
+				<cylinderGeometry args={[0.15, 0.4, 1.0, 16]} /> {/* Larger exhaust */}
 				<meshStandardMaterial 
 					emissive={color} 
-					emissiveIntensity={isBoosting ? 3 : 2} 
+					emissiveIntensity={isBoosting ? 4 : 3} // Increased intensity
 					transparent 
-					opacity={0.8}
+					opacity={0.9} // Increased opacity
 					toneMapped={false}
 				/>
 			</mesh>
 			
+			{/* Glowing light */}
+			<pointLight 
+				ref={lightRef}
+				color={color} 
+				intensity={isBoosting ? 3.0 : 1.5} 
+				distance={isBoosting ? 8 : 5} 
+				decay={2}
+			/>
+			
 			{/* Particle effect */}
 			<Sparkles 
-				count={isBoosting ? 50 : 30}
-				scale={[0.5, 0.5, 1.5]}
-				size={0.5}
-				speed={0.3}
+				count={isBoosting ? 80 : 50} // Increased particles
+				scale={[0.7, 0.7, 2.0]} // Larger area
+				size={0.6} // Larger particles
+				speed={0.4} // Faster animation
 				color={color}
-				opacity={0.7}
+				opacity={0.8} // More visible
 			/>
 		</group>
 	);
 }
 
-// Quantum glow effect for the ship's edges
+// Enhanced edge highlighting for better visibility
 function ShipQuantumEdges({ parent }: { parent: THREE.Group }) {
 	const edgesMaterial = new THREE.LineBasicMaterial({
 		color: QUANTUM_PLAYER.COLORS.primaryGlow,
-		linewidth: 1,
+		linewidth: 2, // Thicker lines (note: HTML5 WebGL has limited linewidth support)
 		transparent: true,
-		opacity: 0.7
+		opacity: 0.8, // Increased opacity
 	});
 	
 	const [edges, setEdges] = useState<THREE.LineSegments[]>([]);
@@ -125,17 +145,55 @@ function ShipQuantumEdges({ parent }: { parent: THREE.Group }) {
 		};
 	}, [parent]);
 	
-	// Animate edge glow
+	// Enhanced animation for edge glow
 	useFrame((state) => {
 		edges.forEach(edge => {
 			if (edge.material) {
 				const material = edge.material as THREE.LineBasicMaterial;
-				material.opacity = Math.sin(state.clock.elapsedTime * 2) * 0.3 + 0.4;
+				// More pronounced pulse
+				material.opacity = Math.sin(state.clock.elapsedTime * 3) * 0.4 + 0.6;
+				
+				// Pulse the color slightly for extra effect
+				const color = material.color as THREE.Color;
+				const hue = (state.clock.elapsedTime * 0.05) % 1;
+				color.setHSL(hue, 1, 0.5); // Cycle through colors slowly
 			}
 		});
 	});
 	
 	return null;
+}
+
+// Add a quantum shield effect around the player
+function QuantumShield({ radius = 1.5 }: { radius?: number }) {
+	const shieldRef = useRef<THREE.Mesh>(null);
+	
+	// Animate the shield
+	useFrame((state) => {
+		if (shieldRef.current) {
+			// Pulse the shield scale
+			const pulseFactor = Math.sin(state.clock.elapsedTime * 2) * 0.05 + 1;
+			shieldRef.current.scale.set(pulseFactor, pulseFactor, pulseFactor);
+			
+			// Rotate the shield slowly
+			shieldRef.current.rotation.y += 0.01;
+			shieldRef.current.rotation.z += 0.005;
+		}
+	});
+	
+	return (
+		<mesh ref={shieldRef}>
+			<sphereGeometry args={[radius, 32, 32]} />
+			<meshStandardMaterial 
+				color={QUANTUM_PLAYER.COLORS.secondaryGlow}
+				emissive={QUANTUM_PLAYER.COLORS.secondaryGlow}
+				emissiveIntensity={2}
+				transparent
+				opacity={0.15}
+				side={THREE.DoubleSide}
+			/>
+		</mesh>
+	);
 }
 
 export function PlayerView({ entity }: { entity: Entity }) {
@@ -157,10 +215,10 @@ export function PlayerView({ entity }: { entity: Entity }) {
 					child.material.metalness = QUANTUM_PLAYER.MATERIALS.bodyMetalness;
 					child.material.roughness = QUANTUM_PLAYER.MATERIALS.bodyRoughness;
 					
-					// Add slight emissive glow to the body
+					// Add strong emissive glow to the body
 					if (child.name.includes('body')) {
 						child.material.emissive = QUANTUM_PLAYER.COLORS.primaryGlow;
-						child.material.emissiveIntensity = 0.2;
+						child.material.emissiveIntensity = 0.5; // Increased from 0.2
 					}
 					
 					// Glass/windshield parts
@@ -168,7 +226,11 @@ export function PlayerView({ entity }: { entity: Entity }) {
 						child.material.metalness = QUANTUM_PLAYER.MATERIALS.glassMetalness;
 						child.material.roughness = QUANTUM_PLAYER.MATERIALS.glassRoughness;
 						child.material.transparent = true;
-						child.material.opacity = 0.7;
+						child.material.opacity = 0.8; // Increased from 0.7
+						
+						// Add glow to glass
+						child.material.emissive = QUANTUM_PLAYER.COLORS.secondaryGlow;
+						child.material.emissiveIntensity = 1.0;
 					}
 				}
 			}
@@ -177,9 +239,9 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		// Add wheel meshes - these are separate from the imported model
 		const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 32);
 		const wheelMaterial = new THREE.MeshStandardMaterial({ 
-			color: '#333333',
+			color: '#444444', // Slightly lighter
 			emissive: QUANTUM_PLAYER.COLORS.primaryGlow,
-			emissiveIntensity: 0.5,
+			emissiveIntensity: 1.0, // Increased from 0.5
 			metalness: 0.9,
 			roughness: 0.2
 		});
@@ -265,6 +327,9 @@ export function PlayerView({ entity }: { entity: Entity }) {
 			{/* Add quantum-style edge highlighting */}
 			{groupRef.current && <ShipQuantumEdges parent={groupRef.current} />}
 			
+			{/* Quantum shield effect */}
+			<QuantumShield radius={1.8} />
+			
 			{/* Quantum exhaust effect */}
 			<QuantumExhaust 
 				position={[0, -0.2, -1]} 
@@ -274,10 +339,10 @@ export function PlayerView({ entity }: { entity: Entity }) {
 			{/* Quantum energy trail */}
 			<group ref={trailRef}>
 				<Trail
-					width={1}
-					length={5}
+					width={1.5} // Wider trail
+					length={8} // Longer trail
 					color={QUANTUM_PLAYER.COLORS.trailColor}
-					attenuation={(width) => width * 0.5}
+					attenuation={(width) => width * 0.3} // Slower attenuation
 					local={false}
 				>
 					<mesh position={[0, -0.2, -1.2]}>
@@ -287,14 +352,22 @@ export function PlayerView({ entity }: { entity: Entity }) {
 				</Trail>
 			</group>
 			
-			{/* Quantum glow around the vehicle */}
+			{/* Enhanced quantum glow around the vehicle */}
 			<Sparkles 
-				count={50}
-				scale={[2, 1, 2]}
-				size={0.3}
-				speed={0.2}
+				count={80} // Increased from 50
+				scale={[3, 1.5, 3]} // Larger area
+				size={0.4} // Larger particles
+				speed={0.3} // Slightly faster
 				color={QUANTUM_PLAYER.COLORS.primaryGlow}
-				opacity={0.5}
+				opacity={0.7} // More visible
+			/>
+			
+			{/* Add a point light to make player more visible */}
+			<pointLight 
+				color={QUANTUM_PLAYER.COLORS.primaryGlow} 
+				intensity={1.0} 
+				distance={8} 
+				decay={2}
 			/>
 		</group>
 	);

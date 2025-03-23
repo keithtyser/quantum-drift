@@ -16,12 +16,12 @@ const QUANTUM_VISUALS = {
     primaryGlow: new Color('#00ffff').convertSRGBToLinear(),
     secondaryGlow: new Color('#ff00ff').convertSRGBToLinear(), 
     accentGlow: new Color('#ffff00').convertSRGBToLinear(),
-    trackBase: new Color('#080824').convertSRGBToLinear(),
+    trackBase: new Color('#080830').convertSRGBToLinear(),
     barrierLeft: new Color('#ff2288').convertSRGBToLinear(),
     barrierRight: new Color('#2288ff').convertSRGBToLinear(),
   },
   MATERIALS: {
-    emissiveIntensity: 2.5,
+    emissiveIntensity: 3.5,
     trackMetalness: 0.8,
     trackRoughness: 0.2,
     barrierMetalness: 0.9,
@@ -241,8 +241,8 @@ function QuantumBarrier({ points, side }: { points: THREE.Vector3[], side: 'left
   // Generate barrier posts
   const barrierPosts = useMemo(() => {
     const posts = [];
-    // Place posts every few points along the edge
-    for (let i = 0; i < points.length; i += 2) {
+    // Place posts every few points along the edge (increased density)
+    for (let i = 0; i < points.length; i += 1) { // Changed from i += 2 to i += 1
       const point = points[i].clone();
       // Adjust height for the post
       point.y += 0.7; // Half height of the post
@@ -254,7 +254,7 @@ function QuantumBarrier({ points, side }: { points: THREE.Vector3[], side: 'left
   // Animate energy flow along barriers
   useFrame((state) => {
     if (matRef.current) {
-      const emissiveIntensity = (Math.sin(state.clock.elapsedTime * 3) * 0.3 + 0.7) * QUANTUM_VISUALS.MATERIALS.emissiveIntensity;
+      const emissiveIntensity = (Math.sin(state.clock.elapsedTime * 3) * 0.3 + 0.8) * QUANTUM_VISUALS.MATERIALS.emissiveIntensity;
       matRef.current.emissiveIntensity = emissiveIntensity;
     }
     
@@ -266,11 +266,11 @@ function QuantumBarrier({ points, side }: { points: THREE.Vector3[], side: 'left
   
   return (
     <group ref={groupRef}>
-      {/* Barrier energy line */}
+      {/* Barrier energy line - made thicker and more vibrant */}
       <Line
         points={points}
         color={barrierColor}
-        lineWidth={6}
+        lineWidth={8} // Increased from 6
         toneMapped={false}
       />
       
@@ -291,22 +291,22 @@ function QuantumBarrier({ points, side }: { points: THREE.Vector3[], side: 'left
             />
           </mesh>
           
-          {/* Glow effect on top of post */}
+          {/* Glow effect on top of post - increased intensity */}
           <pointLight 
             position={[0, 0.8, 0]} 
             color={barrierColor} 
-            intensity={2} 
-            distance={3}
+            intensity={3} // Increased from 2
+            distance={5} // Increased from 3
             decay={2}
           />
           
-          {/* Energy sphere on top */}
+          {/* Energy sphere on top - made larger */}
           <mesh position={[0, 0.9, 0]}>
-            <sphereGeometry args={[0.15, 16, 16]} />
+            <sphereGeometry args={[0.2, 16, 16]} /> {/* Increased from 0.15 */}
             <meshStandardMaterial 
               color={barrierColor} 
               emissive={barrierColor}
-              emissiveIntensity={3}
+              emissiveIntensity={4} // Increased from 3
               metalness={1}
               roughness={0}
               toneMapped={false}
@@ -315,15 +315,16 @@ function QuantumBarrier({ points, side }: { points: THREE.Vector3[], side: 'left
         </group>
       ))}
       
-      {/* Only add energy beams between some posts for performance */}
+      {/* Add energy beams between all posts for a more connected look */}
       {barrierPosts.length > 3 && barrierPosts.slice(0, -1).map((start, i) => {
-        if (i % 3 === 0 && i + 1 < barrierPosts.length) {
+        if (i % 2 === 0 && i + 1 < barrierPosts.length) { // Changed from i % 3 to i % 2
           return (
             <EnergyBeam 
               key={`beam-${i}`}
               start={start.clone().add(new THREE.Vector3(0, 0.9, 0))}
               end={barrierPosts[i+1].clone().add(new THREE.Vector3(0, 0.9, 0))}
               color={barrierColor}
+              thickness={0.15} // Added thickness parameter
             />
           );
         }
@@ -356,18 +357,18 @@ function QuantumTrackSurface({ segment }: { segment: any }) {
     const getTrackBaseColor = () => {
       switch (segment.type) {
         case 'straight':
-          return '#051525'; // Dark blue base for straight
+          return '#051545'; // Made slightly brighter blue for straight
         case 'curve-left':
         case 'curve-right':
-          return '#151530'; // Blue tint for curves
+          return '#151560'; // Made more vibrant blue for curves
         case 'hill-up':
-          return '#153015'; // Green tint for uphill
+          return '#154525'; // More vibrant green for uphill
         case 'hill-down':
-          return '#301515'; // Red tint for downhill
+          return '#452515'; // More vibrant red for downhill
         case 'chicane':
-          return '#252525'; // Gray for chicane
+          return '#353545'; // More vibrant gray for chicane
         default:
-          return '#051525';
+          return '#051545';
       }
     };
     
@@ -451,16 +452,16 @@ function QuantumTrackSurface({ segment }: { segment: any }) {
   const getEmissiveColor = () => {
     switch (segment.type) {
       case 'straight':
-        return new Color('#00ffff').convertSRGBToLinear().multiplyScalar(0.3);
+        return new Color('#00ffff').convertSRGBToLinear().multiplyScalar(0.5); // Increased from 0.3
       case 'curve-left':
       case 'curve-right':
-        return new Color('#0066ff').convertSRGBToLinear().multiplyScalar(0.3);
+        return new Color('#0066ff').convertSRGBToLinear().multiplyScalar(0.5); // Increased from 0.3
       case 'hill-up':
-        return new Color('#00ff66').convertSRGBToLinear().multiplyScalar(0.3);
+        return new Color('#00ff66').convertSRGBToLinear().multiplyScalar(0.5); // Increased from 0.3
       case 'hill-down':
-        return new Color('#ff6600').convertSRGBToLinear().multiplyScalar(0.3);
+        return new Color('#ff6600').convertSRGBToLinear().multiplyScalar(0.5); // Increased from 0.3
       default:
-        return new Color('#00ffff').convertSRGBToLinear().multiplyScalar(0.3);
+        return new Color('#00ffff').convertSRGBToLinear().multiplyScalar(0.5); // Increased from 0.3
     }
   };
   
@@ -468,16 +469,16 @@ function QuantumTrackSurface({ segment }: { segment: any }) {
   const trackColor = useMemo(() => {
     switch (segment.type) {
       case 'straight':
-        return new Color('#000020').convertSRGBToLinear();
+        return new Color('#000040').convertSRGBToLinear(); // Brighter than #000020
       case 'curve-left':
       case 'curve-right':
-        return new Color('#000030').convertSRGBToLinear();
+        return new Color('#000060').convertSRGBToLinear(); // Brighter than #000030
       case 'hill-up':
-        return new Color('#002000').convertSRGBToLinear();
+        return new Color('#004000').convertSRGBToLinear(); // Brighter than #002000
       case 'hill-down':
-        return new Color('#200000').convertSRGBToLinear();
+        return new Color('#400000').convertSRGBToLinear(); // Brighter than #200000
       default:
-        return new Color('#000020').convertSRGBToLinear();
+        return new Color('#000040').convertSRGBToLinear();
     }
   }, [segment.type]);
   
@@ -550,7 +551,7 @@ function QuantumTrackSurface({ segment }: { segment: any }) {
         metalness={QUANTUM_VISUALS.MATERIALS.trackMetalness}
         roughness={QUANTUM_VISUALS.MATERIALS.trackRoughness}
         emissive={getEmissiveColor()}
-        emissiveIntensity={1.0}
+        emissiveIntensity={1.5} // Increased from 1.0
         emissiveMap={trackTexture || undefined}
         map={trackTexture || undefined}
         toneMapped={false}
@@ -603,6 +604,46 @@ function SegmentInfo({ segment }: { segment: any }) {
   );
 }
 
+// Add track direction markers to better guide the player
+function TrackDirectionMarkers({ segment }: { segment: any }) {
+  const arrowPoints = useMemo(() => {
+    const points = [];
+    const segmentLength = segment.length || 50;
+    const numArrows = Math.floor(segmentLength / 10); // One arrow every 10 units
+    
+    for (let i = 0; i < numArrows; i++) {
+      const t = i / (numArrows - 1);
+      const z = -t * segmentLength;
+      points.push(new THREE.Vector3(0, 0.5, z));
+    }
+    
+    return points;
+  }, [segment.length]);
+  
+  return (
+    <group position={[0, 0, 0]}>
+      {arrowPoints.map((point, i) => (
+        <group key={`arrow-${i}`} position={point}>
+          {/* Arrow pointing forward */}
+          <mesh rotation={[0, 0, 0]}>
+            <coneGeometry args={[0.5, 1, 8]} />
+            <meshStandardMaterial 
+              color="#00ffff"
+              emissive="#00ffff"
+              emissiveIntensity={2}
+              transparent
+              opacity={0.7}
+              toneMapped={false}
+            />
+          </mesh>
+          {/* Glowing light */}
+          <pointLight color="#00ffff" intensity={0.5} distance={5} decay={2} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
 // Enhanced quantum-themed track segment visualization
 function QuantumTrackSegmentView({ entity }: { entity: Entity }) {
   const segment = entity.get(TrackSegment);
@@ -634,6 +675,9 @@ function QuantumTrackSegmentView({ entity }: { entity: Entity }) {
       <QuantumBarrier points={leftEdgePoints} side="left" />
       <QuantumBarrier points={rightEdgePoints} side="right" />
       
+      {/* Track direction markers */}
+      <TrackDirectionMarkers segment={segment} />
+      
       {/* Floating segment info */}
       <SegmentInfo segment={segment} />
       
@@ -641,6 +685,8 @@ function QuantumTrackSegmentView({ entity }: { entity: Entity }) {
       <QuantumEnergyField 
         position={[startPos.x, startPos.y + 2, startPos.z - segment.length/2]} 
         color={QUANTUM_VISUALS.COLORS.secondaryGlow}
+        count={75} // Increased from 50
+        size={0.3} // Changed from 0.2
       />
       
       {/* Visualize the control points with glowing spheres */}
@@ -650,10 +696,17 @@ function QuantumTrackSegmentView({ entity }: { entity: Entity }) {
           <meshStandardMaterial 
             color={QUANTUM_VISUALS.COLORS.accentGlow} 
             emissive={QUANTUM_VISUALS.COLORS.accentGlow}
-            emissiveIntensity={2}
+            emissiveIntensity={3} // Increased from 2
             metalness={1}
             roughness={0}
             toneMapped={false}
+          />
+          {/* Add point light to make control points more visible */}
+          <pointLight 
+            color={QUANTUM_VISUALS.COLORS.accentGlow} 
+            intensity={0.5} 
+            distance={3} 
+            decay={2} 
           />
         </mesh>
       ))}
