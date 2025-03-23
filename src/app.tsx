@@ -8,9 +8,45 @@ import { Startup } from './startup';
 import { Color } from 'three';
 import { DebugControls } from './components/debug-controls';
 import { OrbitControls, Stats, SoftShadows, Environment, Sky, Grid } from '@react-three/drei';
+import { useState, useEffect } from 'react';
+
+// Controls state available across the app
+export const controlsState = {
+	orbitControlsEnabled: false
+};
 
 export function App() {
 	console.log("App component rendering");
+	const [orbitEnabled, setOrbitEnabled] = useState(controlsState.orbitControlsEnabled);
+	const [showHelp, setShowHelp] = useState(true);
+	
+	// Set up keyboard shortcut to toggle orbit controls - press 'O' to toggle
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key.toLowerCase() === 'o') {
+				controlsState.orbitControlsEnabled = !controlsState.orbitControlsEnabled;
+				setOrbitEnabled(controlsState.orbitControlsEnabled);
+				console.log(`Orbit controls ${controlsState.orbitControlsEnabled ? 'enabled' : 'disabled'}`);
+			}
+			
+			// Any key press will dismiss the help overlay
+			if (showHelp) {
+				setShowHelp(false);
+			}
+		};
+		
+		window.addEventListener('keydown', handleKeyDown);
+		
+		// Auto-hide help message after 10 seconds
+		const helpTimer = setTimeout(() => {
+			setShowHelp(false);
+		}, 10000);
+		
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+			clearTimeout(helpTimer);
+		};
+	}, [showHelp]);
 	
 	return (
 		<>
@@ -44,13 +80,15 @@ export function App() {
 					turbidity={10}
 				/>
 				
-				{/* Enable OrbitControls for debugging */}
-				<OrbitControls 
-					enablePan={true}
-					enableZoom={true}
-					enableRotate={true}
-					target={[0, 0, -10]}
-				/>
+				{/* OrbitControls for debugging - only enabled in debug mode */}
+				{orbitEnabled && (
+					<OrbitControls 
+						enablePan={true}
+						enableZoom={true}
+						enableRotate={true}
+						target={[0, 0, -10]}
+					/>
+				)}
 				
 				<color attach="background" args={[new Color('#000025')]} />
 				
@@ -162,6 +200,52 @@ export function App() {
 			
 			{/* Render debug controls outside of Canvas so they're always visible */}
 			<DebugControls />
+
+			{/* OrbitControls status indicator */}
+			{orbitEnabled && (
+				<div style={{
+					position: 'absolute',
+					top: '10px',
+					right: '10px',
+					background: 'rgba(0,0,0,0.5)',
+					color: '#fff',
+					padding: '5px 10px',
+					borderRadius: '4px',
+					fontSize: '12px'
+				}}>
+					Orbit Controls: ON (Press 'O' to toggle)
+				</div>
+			)}
+			
+			{/* Help overlay */}
+			{showHelp && (
+				<div style={{
+					position: 'absolute',
+					top: '50%',
+					left: '50%',
+					transform: 'translate(-50%, -50%)',
+					background: 'rgba(0,0,0,0.8)',
+					color: '#00ffff',
+					padding: '20px 30px',
+					borderRadius: '8px',
+					fontSize: '16px',
+					textAlign: 'center',
+					boxShadow: '0 0 20px #ff00ff',
+					zIndex: 100,
+					maxWidth: '500px'
+				}}>
+					<h2 style={{ color: '#ff00ff', marginBottom: '15px' }}>Quantum Drift Controls</h2>
+					<p style={{ marginBottom: '15px' }}>Use the following keys to navigate:</p>
+					<div style={{ textAlign: 'left', marginBottom: '20px' }}>
+						<div style={{ marginBottom: '8px' }}><span style={{ color: '#ffff00' }}>W</span> - Accelerate forward</div>
+						<div style={{ marginBottom: '8px' }}><span style={{ color: '#ffff00' }}>S</span> - Brake/Reverse</div>
+						<div style={{ marginBottom: '8px' }}><span style={{ color: '#ffff00' }}>A/D</span> - Steer left/right</div>
+						<div style={{ marginBottom: '8px' }}><span style={{ color: '#ffff00' }}>SPACE</span> - Boost</div>
+						<div style={{ marginBottom: '8px' }}><span style={{ color: '#ffff00' }}>Q/R</span> - Roll left/right</div>
+					</div>
+					<p style={{ fontSize: '14px', color: '#aaaaaa' }}>Press any key to dismiss this message</p>
+				</div>
+			)}
 		</>
 	);
 }
