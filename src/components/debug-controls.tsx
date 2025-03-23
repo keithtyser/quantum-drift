@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useWorld } from 'koota/react';
 import { Stats } from '@react-three/drei';
-import { controlsState } from '../app';
 
 // Global debug state that can be accessed throughout the application
 export const debugState = {
@@ -19,7 +18,6 @@ export function DebugControls() {
   const [showBoundaries, setShowBoundaries] = useState(debugState.showBoundaries);
   const [showTrackSegmentIds, setShowTrackSegmentIds] = useState(debugState.showTrackSegmentIds);
   const [showControlPoints, setShowControlPoints] = useState(debugState.showControlPoints);
-  const [orbitEnabled, setOrbitEnabled] = useState(controlsState.orbitControlsEnabled);
 
   // Update global debug state when UI changes
   const toggleBoundaries = () => {
@@ -36,21 +34,11 @@ export function DebugControls() {
     debugState.showControlPoints = !debugState.showControlPoints;
     setShowControlPoints(debugState.showControlPoints);
   };
-  
-  const toggleOrbitControls = () => {
-    controlsState.orbitControlsEnabled = !controlsState.orbitControlsEnabled;
-    setOrbitEnabled(controlsState.orbitControlsEnabled);
-  };
 
   const resetAll = () => {
     console.log('Reset game triggered from debug controls');
     // Would dispatch a reset action here if it was implemented
   };
-  
-  // Stay in sync with app-level orbit control state
-  useEffect(() => {
-    setOrbitEnabled(controlsState.orbitControlsEnabled);
-  }, [controlsState.orbitControlsEnabled]);
 
   return (
     <>
@@ -139,20 +127,6 @@ export function DebugControls() {
           </button>
           
           <button
-            onClick={toggleOrbitControls}
-            style={{
-              padding: '5px',
-              backgroundColor: orbitEnabled ? '#4CAF50' : '#555',
-              border: 'none',
-              borderRadius: '3px',
-              color: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            {orbitEnabled ? 'Disable Orbit Controls' : 'Enable Orbit Controls'}
-          </button>
-          
-          <button
             onClick={resetAll}
             style={{
               padding: '5px',
@@ -171,8 +145,7 @@ export function DebugControls() {
             <div>Controls:</div>
             <div>W/S: Forward/Brake</div>
             <div>A/D: Turn left/right</div>
-            <div>Space: Boost</div>
-            <div>O: Toggle orbit controls</div>
+            <div>R: Reset (double tap)</div>
           </div>
         </div>
       )}

@@ -34,33 +34,8 @@ const CAMERA_CONFIG = {
 let previousTargetPosition = new THREE.Vector3();
 let isFirstFrame = true;
 
-// Debug counters for logging
-let frameCount = 0;
-let lastPlayerPosition = new THREE.Vector3();
-let playerPositionChanged = false;
-
 export const cameraFollowPlayer = (world: World) => {
-	// Increment frame counter
-	frameCount++;
-	
-	// Find the player entity with required components
 	const player = world.queryFirst(IsPlayer, Transform, Movement);
-	
-	// Log detailed debugging info periodically
-	if (frameCount % 60 === 0) {
-		console.log("CameraFollowSystem: Player entity found =", !!player);
-		console.log("CameraFollowSystem: Total entities =", world.query().length);
-		
-		// Check if player position has changed since last frame
-		if (player) {
-			const playerTransform = player.get(Transform)!;
-			playerPositionChanged = !lastPlayerPosition.equals(playerTransform.position);
-			console.log("CameraFollowSystem: Player position changed =", playerPositionChanged);
-			lastPlayerPosition.copy(playerTransform.position);
-		}
-	}
-	
-	// If no player entity is found, we can't continue
 	if (!player) return;
 
 	const playerTransform = player.get(Transform)!;
@@ -69,7 +44,7 @@ export const cameraFollowPlayer = (world: World) => {
 	// Calculate speed
 	const speed = playerMovement.velocity.length();
 	
-	// Get player's forward direction
+	// Get player's forward direction and velocity direction
 	const playerForwardDir = new THREE.Vector3(0, 0, -1).applyEuler(playerTransform.rotation);
 	
 	// Calculate the speed factor for dynamic adjustments (0-1)
@@ -92,30 +67,15 @@ export const cameraFollowPlayer = (world: World) => {
 	// Calculate the target camera position by adding offset to player position
 	const targetPosition = new THREE.Vector3().copy(playerTransform.position).add(offsetRotated);
 	
-	// Find all camera entities
-	const cameras = world.query(IsCamera, Transform);
-	
-	// Log camera count for debugging
-	if (frameCount % 60 === 0) {
-		console.log(`CameraFollowSystem: Found ${cameras.length} cameras to update`);
-	}
-	
-	// If no cameras found, create a warning
-	if (cameras.length === 0 && frameCount % 60 === 0) {
-		console.warn("CameraFollowSystem: No camera entities found!");
-		return;
-	}
-	
-	// Update each camera entity
-	cameras.updateEach(([cameraTransform]) => {
+	world.query(IsCamera, Transform).updateEach(([cameraTransform]) => {
 		// Initialize previous position on first frame
 		if (isFirstFrame) {
 			previousTargetPosition.copy(targetPosition);
 			isFirstFrame = false;
-			console.log("CameraFollowSystem: First frame initialization");
 		}
 		
 		// Slightly smooth the target position to reduce micro-jitters
+		// This applies a subtle smoothing to ALL camera movement for stability
 		previousTargetPosition.lerp(targetPosition, 0.5);
 		
 		// Apply camera position with appropriate damping
@@ -143,12 +103,6 @@ export const cameraFollowPlayer = (world: World) => {
 		// Ensure camera stays above minimum height
 		if (cameraTransform.position.y < 1.5) {
 			cameraTransform.position.y = 1.5;
-		}
-		
-		// Log camera position for debugging
-		if (frameCount % 120 === 0) {
-			console.log(`Camera position: [${cameraTransform.position.x.toFixed(2)}, ${cameraTransform.position.y.toFixed(2)}, ${cameraTransform.position.z.toFixed(2)}]`);
-			console.log(`Distance to player: ${cameraTransform.position.distanceTo(playerTransform.position).toFixed(2)}`);
 		}
 	});
 };

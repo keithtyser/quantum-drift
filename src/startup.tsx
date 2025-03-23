@@ -1,71 +1,51 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWorld } from 'koota/react';
-import { isWorldInitialized } from './world';
-import { IsPlayer, IsCamera } from './traits';
+import { actions } from './actions';
+import { Vector3 } from 'three';
 
 /**
- * Component that verifies world initialization rather than performing it
- * Initialization is now done in world.ts before React rendering
+ * Initializes the world and spawns necessary entities
  */
 export function Startup({ initialCameraPosition }: { initialCameraPosition: [number, number, number] }) {
 	const world = useWorld();
-	const [error, setError] = useState<Error | null>(null);
-	const checkPerformed = useRef(false);
+	const [initialized, setInitialized] = useState(false);
 
 	useEffect(() => {
-		// Skip if world is not yet available
-		if (!world || checkPerformed.current) return;
-		
-		checkPerformed.current = true;
-		
-		console.log("Startup component - Verifying world initialization...");
-		
-		try {
-			// Verify world is properly initialized
-			if (!isWorldInitialized()) {
-				throw new Error("World not properly initialized before component rendering");
+		if (world && !initialized) {
+			console.log("==========================================");
+			console.log("              GAME STARTUP                ");
+			console.log("==========================================");
+			
+			try {
+				// Create the actions object with the world
+				const gameActions = actions(world);
+				
+				// Create procedural track
+				console.log("Spawning procedural track");
+				const trackEntity = gameActions.spawnTrack();
+				console.log(`Track entity spawned: ${trackEntity?.id}`);
+				
+				// Camera position debugging
+				console.log(`Spawning camera at position: (${initialCameraPosition[0]}, ${initialCameraPosition[1]}, ${initialCameraPosition[2]})`);
+				
+				// Spawn camera using the actions API
+				const cameraEntity = gameActions.spawnCamera(initialCameraPosition);
+				console.log(`Camera spawned: ${cameraEntity?.id}`);
+				
+				// Spawn player using the actions API
+				console.log("Spawning player entity");
+				const playerEntity = gameActions.spawnPlayer();
+				console.log(`Player spawned: ${playerEntity?.id}`);
+				
+				console.log("Game initialization complete");
+				console.log("==========================================");
+				
+				setInitialized(true);
+			} catch (error) {
+				console.error("Error during game initialization:", error);
 			}
-			
-			// Additional verification could be done here
-			const playerCount = world.query(IsPlayer).length;
-			const cameraCount = world.query(IsCamera).length;
-			
-			console.log(`Verification complete: Found ${playerCount} player entities and ${cameraCount} camera entities`);
-			
-			if (playerCount === 0) {
-				console.warn("No player entities found during verification!");
-			}
-			
-			if (cameraCount === 0) {
-				console.warn("No camera entities found during verification!");
-			}
-		} catch (err) {
-			console.error("Error during startup verification:", err);
-			setError(err instanceof Error ? err : new Error(String(err)));
 		}
-	}, [world]);
-
-	// Display error if initialization check failed
-	if (error) {
-		return (
-			<div style={{ 
-				position: 'absolute', 
-				top: '50%', 
-				left: '50%', 
-				transform: 'translate(-50%, -50%)',
-				background: 'rgba(255,0,0,0.8)',
-				padding: '20px',
-				borderRadius: '8px',
-				color: 'white',
-				maxWidth: '80%',
-				zIndex: 1000
-			}}>
-				<h2>Game Initialization Error</h2>
-				<p>{error.message}</p>
-				<pre>{error.stack}</pre>
-			</div>
-		);
-	}
+	}, [world, initialized, initialCameraPosition]);
 
 	return null;
 }
