@@ -6,8 +6,9 @@ import { PostProcessing } from './components/postprocessing';
 import { GameLoop } from './frameloop';
 import { Startup } from './startup';
 import { Color } from 'three';
-import { DebugControls } from './components/debug-controls';
+import { DebugControls, debugState } from './components/debug-controls';
 import { OrbitControls, Stats } from '@react-three/drei';
+import { QuantumEffects } from './components/quantum-effects';
 
 export function App() {
 	console.log("App component rendering");
@@ -19,10 +20,6 @@ export function App() {
 				shadows={true} 
 				gl={{ alpha: false, antialias: true }}
 				camera={{ position: [0, 10, 20], fov: 60 }}
-				onCreated={({ camera }) => {
-					// Make camera available for frustum culling
-					window.currentCamera = camera;
-				}}
 			>
 				{/* Enable OrbitControls for debugging */}
 				<OrbitControls 
@@ -55,6 +52,9 @@ export function App() {
 				<CameraRenderer />
 				<PlayerRenderer />
 				<TrackRenderer />
+                
+				{/* Add quantum visual effects (conditionally rendered via component) */}
+				<QuantumEffects />
 
 				<ambientLight intensity={1.02} />
 				<directionalLight position={[10, 10, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
@@ -62,8 +62,8 @@ export function App() {
 				
 				<PostProcessing />
 				
-				{/* Show stats */}
-				<Stats />
+				{/* Show stats if enabled */}
+				{debugState.showFPS && <Stats />}
 			</Canvas>
 			
 			{/* Render debug controls outside of Canvas so they're always visible */}
