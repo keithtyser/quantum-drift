@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWorld } from 'koota/react';
 import { actions } from './actions';
+import { Vector3 } from 'three';
 
 /**
  * Initializes the world and spawns necessary entities
@@ -8,7 +9,7 @@ import { actions } from './actions';
 export function Startup({ initialCameraPosition }: { initialCameraPosition: [number, number, number] }) {
 	const world = useWorld();
 	const [initialized, setInitialized] = useState(false);
-	
+
 	useEffect(() => {
 		if (world && !initialized) {
 			console.log("==========================================");
@@ -23,7 +24,6 @@ export function Startup({ initialCameraPosition }: { initialCameraPosition: [num
 				console.log("Spawning procedural track");
 				const trackEntity = gameActions.spawnTrack();
 				console.log(`Track entity spawned: ${trackEntity?.id}`);
-				console.log("Track renderer fully initialized!");
 				
 				// Camera position debugging
 				console.log(`Spawning camera at position: (${initialCameraPosition[0]}, ${initialCameraPosition[1]}, ${initialCameraPosition[2]})`);

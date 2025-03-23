@@ -8,6 +8,9 @@ import { useQuery, useWorld } from 'koota/react';
 import { IsPlayer, Movement, Transform } from '../traits';
 import { debugState } from './debug-controls';
 
+// Fallback position for when no player exists
+const FALLBACK_POSITION = new Vector3(0, 1, 0);
+
 interface ParticleProps {
   count: number;
   color: string;
@@ -103,40 +106,73 @@ const QuantumField: React.FC<FieldProps> = ({ intensity, color, pulseSpeed }) =>
   );
 };
 
-// Component that connects quantum effects to player data
-const QuantumEffectsForPlayer: React.FC = () => {
-  const world = useWorld();
-  const playerEntities = useQuery([IsPlayer]);
-  
-  // No player, no effects
-  if (playerEntities.length === 0) {
-    return null;
-  }
-  
-  const playerEntity = playerEntities[0];
-  const transform = world.get(playerEntity, Transform);
-  const movement = world.get(playerEntity, Movement);
-  
-  // Calculate intensity based on player speed
-  const speed = movement?.velocity ? new Vector3().copy(movement.velocity).length() : 0;
-  const intensity = Math.min(1, speed / 20);
+// Debug version of quantum effects that doesn't depend on player
+const DebugQuantumEffects: React.FC = () => {
+  console.log("Rendering debug quantum effects - no player found");
   
   return (
-    <group position={[transform?.position.x || 0, transform?.position.y || 0, transform?.position.z || 0]}>
+    <group position={FALLBACK_POSITION}>
       <QuantumParticles 
         count={100} 
         color="#00ffff" 
         size={0.1} 
         maxDistance={3}
-        speedFactor={1 + intensity * 2}
+        speedFactor={1}
       />
       <QuantumField 
-        intensity={0.5 + intensity * 0.5} 
+        intensity={0.5} 
         color="#0088ff" 
-        pulseSpeed={1 + intensity}
+        pulseSpeed={1}
       />
     </group>
   );
+};
+
+// Component that connects quantum effects to player data
+const QuantumEffectsForPlayer: React.FC = () => {
+  const world = useWorld();
+  
+  try {
+    const playerEntities = useQuery([IsPlayer]);
+    
+    // No player, use debug fallback
+    if (!playerEntities || playerEntities.length === 0) {
+      return <DebugQuantumEffects />;
+    }
+    
+    const playerEntity = playerEntities[0];
+    const transform = world.get(playerEntity, Transform);
+    const movement = world.get(playerEntity, Movement);
+    
+    if (!transform) {
+      console.warn("Player found but has no Transform trait");
+      return <DebugQuantumEffects />;
+    }
+    
+    // Calculate intensity based on player speed
+    const speed = movement?.velocity ? new Vector3().copy(movement.velocity).length() : 0;
+    const intensity = Math.min(1, speed / 20);
+    
+    return (
+      <group position={[transform.position.x || 0, transform.position.y || 0, transform.position.z || 0]}>
+        <QuantumParticles 
+          count={100} 
+          color="#00ffff" 
+          size={0.1} 
+          maxDistance={3}
+          speedFactor={1 + intensity * 2}
+        />
+        <QuantumField 
+          intensity={0.5 + intensity * 0.5} 
+          color="#0088ff" 
+          pulseSpeed={1 + intensity}
+        />
+      </group>
+    );
+  } catch (error) {
+    console.error("Error in quantum effects:", error);
+    return <DebugQuantumEffects />;
+  }
 };
 
 // Main export - includes all quantum effects
@@ -146,13 +182,16 @@ export const QuantumEffects: React.FC = () => {
     return null;
   }
 
+  // Add debug output
+  console.log("Rendering quantum effects component");
+
   return (
     <>
       <QuantumEffectsForPlayer />
       
-      <EffectComposer>
+      <EffectComposer enabled={debugState.showQuantumEffects}>
         <Bloom 
-          intensity={1.0} 
+          intensity={0.5} // Reduced from 1.0 to be less intense initially
           luminanceThreshold={0.2} 
           luminanceSmoothing={0.9} 
           kernelSize={KernelSize.LARGE}
@@ -166,7 +205,7 @@ export const QuantumEffects: React.FC = () => {
         <Glitch
           delay={[1.5, 3.5]}
           duration={[0.2, 0.4]}
-          strength={new Vector2(0.2, 0.4)}
+          strength={new Vector2(0.1, 0.2)} // Reduced from 0.2,0.4 to be less intense
           mode={GlitchMode.CONSTANT_MILD}
           active
           ratio={0.85}

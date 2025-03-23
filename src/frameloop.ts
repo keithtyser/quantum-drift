@@ -11,6 +11,7 @@ import { cameraFollowPlayer } from './systems/camera-follow-player';
 import { updateTrackSegments } from './systems/track-manager';
 import { enforceTrackBoundaries } from './systems/track-boundary';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
+import { PlayerController } from './systems/player-controller';
 import { IsPlayer, Transform } from './traits';
 
 export function GameLoop() {
@@ -34,6 +35,7 @@ export function GameLoop() {
 		
 		// Physics updates
 		convertInputToMovement(world);
+		PlayerController(world);
 		applyForce(world);
 		moveEntities(world);
 		limitSpeed(world);

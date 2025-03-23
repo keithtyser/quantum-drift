@@ -16,7 +16,7 @@ export function App() {
 	return (
 		<>
 			<Canvas 
-				style={{ background: 'black' }} 
+				style={{ background: '#000033' }}
 				shadows={true} 
 				gl={{ alpha: false, antialias: true }}
 				camera={{ position: [0, 10, 20], fov: 60 }}
@@ -29,19 +29,20 @@ export function App() {
 					target={[0, 0, -10]}
 				/>
 				
-				<color attach="background" args={[new Color('#87CEEB')]} />
+				{/* Sky blue color for the background */}
+				<color attach="background" args={[new Color('#1a1a33')]} />
 				
 				{/* World coordinate axes helper */}
 				<axesHelper args={[10]} />
 				
 				{/* Debug sphere to confirm rendering works */}
-				<mesh position={[0, 0, 0]}>
+				<mesh position={[0, 0, 0]} castShadow receiveShadow>
 					<sphereGeometry args={[1, 16, 16]} />
-					<meshStandardMaterial color="hotpink" />
+					<meshStandardMaterial color="hotpink" emissive="#400040" emissiveIntensity={0.5} />
 				</mesh>
 				
-				{/* Debug ground plane */}
-				<mesh position={[0, -1, 0]} rotation={[-Math.PI/2, 0, 0]}>
+				{/* Debug ground plane with a grid pattern */}
+				<mesh position={[0, -1, 0]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
 					<planeGeometry args={[100, 100]} />
 					<meshStandardMaterial color="#444444" />
 				</mesh>
@@ -56,9 +57,16 @@ export function App() {
 				{/* Add quantum visual effects (conditionally rendered via component) */}
 				<QuantumEffects />
 
-				<ambientLight intensity={1.02} />
-				<directionalLight position={[10, 10, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
-				<directionalLight position={[-10, 10, -10]} intensity={0.5} />
+				{/* Increased lighting for better visibility */}
+				<ambientLight intensity={1.5} /> 
+				<directionalLight 
+					position={[10, 10, 10]} 
+					intensity={2.0} 
+					castShadow 
+					shadow-mapSize={[2048, 2048]} 
+				/>
+				<directionalLight position={[-10, 10, -10]} intensity={1.0} />
+				<hemisphereLight args={['#8888ff', '#333333', 0.8]} />
 				
 				<PostProcessing />
 				
