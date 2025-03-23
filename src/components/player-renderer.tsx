@@ -8,6 +8,7 @@ import src from '../assets/ships/fighter.glb?url';
 import { IsPlayer, Transform, Ref, Movement } from '../traits';
 import { useFrame } from '@react-three/fiber';
 import { createGlowTexture } from '../utils/texture-generator';
+import { useWorld } from 'koota/react';
 
 // Quantum player visuals configuration
 const QUANTUM_PLAYER = {
@@ -399,5 +400,26 @@ export function PlayerView({ entity }: { entity: Entity }) {
 // Query for the first player entity and render it
 export function PlayerRenderer() {
 	const player = useQueryFirst(IsPlayer, Transform);
+	console.log("PlayerRenderer: Player entity found:", !!player, player?.id);
+	
+	// Perform a second check for debugging purposes
+	const world = useWorld();
+	useEffect(() => {
+		if (world) {
+			// Query all player entities to see if any exist
+			const players = world.query(IsPlayer);
+			console.log(`PlayerRenderer: Found ${players.length} player entities`);
+			
+			// Check for any entities with IsPlayer trait
+			const allEntities = world.query();
+			console.log(`PlayerRenderer: Total entities in world: ${allEntities.length}`);
+			
+			// Attempt to access entity by direct query
+			const playerResults = world.query(IsPlayer);
+			const playerDirect = playerResults.length > 0 ? playerResults[0] : null;
+			console.log("PlayerRenderer: Direct query result:", !!playerDirect);
+		}
+	}, [world]);
+	
 	return player ? <PlayerView entity={player} /> : null;
 }

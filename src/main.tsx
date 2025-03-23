@@ -1,6 +1,6 @@
 // src/main.tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import * as React from 'react';
+import * as ReactDOM from 'react-dom/client';
 import './styles.css';
 import { App } from './app';
 import { WorldProvider } from 'koota/react';
@@ -8,9 +8,10 @@ import { world } from './world';
 
 // Create root & render
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  // Temporarily disable StrictMode to test entity persistence
+  // <React.StrictMode>
     <WorldProvider world={world}>
       <App />
     </WorldProvider>
-  </React.StrictMode>
+  // </React.StrictMode>
 );
